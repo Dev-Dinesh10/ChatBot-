@@ -1,59 +1,37 @@
+import 'dotenv/config'; // Add this first so variables are loaded before imports!
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { OpenRouter } from '@openrouter/sdk';
-
-dotenv.config();
+import mongoose from 'mongoose';
+import chatRoutes from './routes/chat.js';
+import analyticsRoutes from './routes/analytics.js';
+import exportRoutes from './routes/export.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+// Middleware
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true
+}));
 app.use(express.json());
 
-const openrouter = new OpenRouter({
-    apiKey: process.env.OPENROUTER_API_KEY || ''
-});
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/klausai';
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ MongoDB Connected'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// Change this to any working free model from openrouter.ai/models
-const MODEL = 'google/gemma-3-4b-it:free';
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/export', exportRoutes);
 
-app.post('/api/chat', async (req, res) => {
-    const { messages } = req.body;
-
-    if (!messages || !Array.isArray(messages)) {
-        return res.status(400).json({ error: 'Messages array is required' });
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    try {
-        const stream = await openrouter.chat.send({
-            chatGenerationParams: {
-                model: MODEL,
-                messages,
-                stream: true
-            }
-        });
-
-        for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content;
-            if (content) {
-                res.write('data: ' + JSON.stringify({ content }) + '\n\n');
-            }
-        }
-
-        res.write('data: [DONE]\n\n');
-        res.end();
-    } catch (error) {
-        console.error('OpenRouter API error:', error);
-        res.write('data: ' + JSON.stringify({ error: error.message }) + '\n\n');
-        res.end();
-    }
-});
+// Health Check
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.listen(port, () => {
-    console.log('Server is running on http://localhost:' + port);
+    console.log(`🚀 Server running on http://localhost:${port}`);
 });

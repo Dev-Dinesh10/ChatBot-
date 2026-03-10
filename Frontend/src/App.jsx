@@ -1,296 +1,416 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import {
+  Menu, Plus, MessageSquare,
+  Send, Copy, Sparkles,
+  Trash2, StopCircle, Zap, Download, Share2, PanelLeft, LayoutDashboard, LogOut
+} from 'lucide-react';
+import axios from 'axios';
+import { useChatStream } from './hooks/useChatStream';
+import Dashboard from './components/DashboardCharts';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-const SUGGESTIONS = [
-  { icon: '⚛️', title: 'Quantum computing', text: 'Explain quantum computing simply' },
-  { icon: '🌊', title: 'Ocean poem', text: 'Write a short poem about the ocean' },
-  { icon: '💻', title: 'Coding practices', text: 'What are the best coding practices?' },
-  { icon: '🔬', title: 'Science fact', text: 'Tell me an interesting science fact' },
-];
+const BASE_URL = 'http://localhost:5000';
 
 export default function App() {
+  const [session, setSession] = useState(null); // null until we fetch a real token
+  const [authLoading, setAuthLoading] = useState(true);
+  const [view, setView] = useState('chat'); // 'chat' or 'dashboard'
+  const [threads, setThreads] = useState([]);
+  const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
-  const [model] = useState('google/gemma-3-4b-it:free');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const { startStream, stopStream, streaming } = useChatStream(BASE_URL);
+
+  const [authPage, setAuthPage] = useState('login'); // 'login' | 'register'
+
+  // ── RESTORE SESSION FROM LOCALSTORAGE ──
+  // On first load, check if user already has a saved JWT token.
+  // If yes → go straight to chat. If no → show login page.
+  useEffect(() => {
+    const savedToken = localStorage.getItem('klausai_token');
+    const savedUser = localStorage.getItem('klausai_user');
+    if (savedToken && savedUser) {
+      setSession({ user: JSON.parse(savedUser), accessToken: savedToken });
+    }
+    setAuthLoading(false);
+  }, []);
+
+  // ── CALLED BY Login.jsx / Register.jsx on success ──
+  const handleLogin = (token, user) => {
+    setSession({ user, accessToken: token });
+  };
+
+  // ── LOGOUT ──
+  const handleLogout = () => {
+    localStorage.removeItem('klausai_token');
+    localStorage.removeItem('klausai_user');
+    setSession(null);
+    setMessages([]);
+    setThreads([]);
+    setActiveThreadId(null);
+  };
+
+
+  // ── LOAD THREADS ──
+  const fetchThreads = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/chat/threads`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` }
+      });
+      setThreads(res.data);
+    } catch (err) {
+      console.error('Fetch threads failed', err);
+    }
+  };
+
+  useEffect(() => {
+    if (session) fetchThreads();
+  }, [session]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streaming]);
 
-  const autoResize = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+  // ── SELECT THREAD ──
+  const selectThread = async (id) => {
+    setActiveThreadId(id);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/chat/threads/${id}`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` }
+      });
+      setMessages(res.data.messages || []);
+      if (window.innerWidth < 768) setSidebarOpen(false);
+    } catch (err) {
+      console.error('Load thread failed', err);
+    }
   };
 
-  const sendMessage = async (text) => {
-    const msg = (text || input).trim();
-    if (!msg || streaming) return;
+  // ── CREATE THREAD ──
+  const createNewThread = async () => {
+    try {
+      const res = await axios.post(`${BASE_URL}/api/chat/threads`, {}, {
+        headers: { Authorization: `Bearer ${session.accessToken}` }
+      });
+      setThreads([res.data, ...threads]);
+      setActiveThreadId(res.data._id);
+      setMessages([]);
+    } catch (err) {
+      console.error('Create thread failed', err);
+    }
+  };
 
-    const history = [...messages, { role: 'user', content: msg }];
-    setMessages(history);
+  // ── DELETE THREAD ──
+  const deleteThread = async (id, e) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/chat/threads/${id}`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` }
+      });
+      setThreads(threads.filter(t => t._id !== id));
+      if (activeThreadId === id) {
+        setActiveThreadId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('Delete failed', err);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || streaming) return;
+
+    let currentThreadId = activeThreadId;
+    if (!currentThreadId) {
+      // Auto-create thread if none active
+      const res = await axios.post(`${BASE_URL}/api/chat/threads`, {}, {
+        headers: { Authorization: `Bearer ${session.accessToken}` }
+      });
+      currentThreadId = res.data._id;
+      setActiveThreadId(currentThreadId);
+      setThreads([res.data, ...threads]);
+    }
+
+    const userMsg = { role: 'user', content: input };
+    const newMessages = [...messages, userMsg];
+    setMessages([...newMessages, { role: 'assistant', content: '', streaming: true }]);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    setStreaming(true);
-    setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }]);
 
-    try {
-      const res = await fetch('http://localhost:5000/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
-      });
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let aiText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split('\n');
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6);
-          if (raw === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed.content) {
-              aiText += parsed.content;
-              setMessages(prev => {
-                const next = [...prev];
-                next[next.length - 1] = { role: 'assistant', content: aiText, streaming: true };
-                return next;
-              });
-            }
-          } catch (_) { }
-        }
+    startStream(
+      newMessages,
+      currentThreadId,
+      session.accessToken,
+      (chunk, full) => {
+        setMessages(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: full, streaming: true };
+          return next;
+        });
+      },
+      (full) => {
+        setMessages(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: full, streaming: false };
+          return next;
+        });
+        fetchThreads(); // Refresh for title updates
+      },
+      (err) => {
+        setMessages(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: `⚠️ Error: ${err}`, streaming: false };
+          return next;
+        });
       }
-      setMessages(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: aiText, streaming: false };
-        return next;
-      });
-    } catch {
-      setMessages(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: '⚠️ Connection error. Make sure the backend server is running.', streaming: false };
-        return next;
-      });
-    } finally {
-      setStreaming(false);
-    }
+    );
   };
 
-  const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+  // ── EXPORT & SHARE ──
+  const exportPDF = async () => {
+    if (!activeThreadId) return;
+    try {
+      const response = await axios.post(`${BASE_URL}/api/export/pdf`,
+        { threadId: activeThreadId },
+        {
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+          responseType: 'blob'
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `chat-${activeThreadId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) { toast.error('Export failed'); }
   };
+
+  const shareChat = async () => {
+    if (!activeThreadId) return;
+    try {
+      const res = await axios.post(`${BASE_URL}/api/export/share`,
+        { threadId: activeThreadId },
+        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+      );
+      navigator.clipboard.writeText(res.data.shareUrl);
+      toast.success('Share link copied to clipboard!');
+    } catch (err) { toast.error('Share failed'); }
+  };
+
+  // ── LOADING GUARD: don't render until localStorage check is done ──
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0a0a0b]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center animate-pulse">
+            <Zap className="w-6 h-6 text-white fill-white" />
+          </div>
+          <p className="text-gray-500 text-sm">Starting KlausAI...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── AUTH GATE: No session → show Login or Register ──
+  if (!session) {
+    if (authPage === 'register') {
+      return <Register onLogin={handleLogin} goToLogin={() => setAuthPage('login')} />;
+    }
+    return (
+      <>
+        <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+        {authPage === 'register' ? (
+          <Register onLogin={handleLogin} goToLogin={() => setAuthPage('login')} />
+        ) : (
+          <Login onLogin={handleLogin} goToRegister={() => setAuthPage('register')} />
+        )}
+      </>
+    );
+  }
+
+  if (view === 'dashboard') {
+    return (
+      <>
+        <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+        <div className="flex bg-[#0a0a0b] h-screen overflow-hidden">
+          <aside className="w-16 md:w-64 border-r border-white/5 bg-[#0f0f11] flex flex-col items-center py-6 gap-6">
+            <button onClick={() => setView('chat')} className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all">
+              <MessageSquare className="w-6 h-6" />
+            </button>
+            <button className="p-3 rounded-xl bg-violet-600 text-white transition-all shadow-lg shadow-violet-500/20">
+              <LayoutDashboard className="w-6 h-6" />
+            </button>
+          </aside>
+          <div className="flex-1 overflow-y-auto">
+            <Dashboard token={session.accessToken} />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #0B0F19 0%, #0f111a 50%, #111827 100%)' }}>
+    <>
+      <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+      <div className="flex h-screen w-screen overflow-hidden bg-[#0a0a0b] text-white selection:bg-purple-500/30">
 
-      {/* ── RADIAL GLOWS ── */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #7C3AED, transparent 70%)' }} />
-        <div className="absolute -bottom-40 -right-20 w-[600px] h-[600px] rounded-full opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, #6366F1, transparent 70%)' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #9333EA, transparent 70%)' }} />
-      </div>
-
-      {/* ── SIDEBAR ── */}
-      <aside className="relative z-10 w-64 flex-shrink-0 flex flex-col p-4 gap-4 border-r border-white/[0.06]"
-        style={{ background: 'rgba(15, 17, 26, 0.8)', backdropFilter: 'blur(24px)' }}>
-
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-2 py-2">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0 glow-purple-sm"
-            style={{ background: 'linear-gradient(135deg, #7C3AED, #6366F1)' }}>
-            ⚡
-          </div>
-          <div>
-            <div className="font-bold text-[1.05rem] gradient-text leading-none mb-1">KlausAI</div>
-            <div className="text-[9px] text-gray-500 uppercase tracking-widest leading-none">Powered by Dinesh</div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-white/[0.06]" />
-
-        {/* New Chat */}
-        <button
-          onClick={() => setMessages([])}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 border"
-          style={{
-            background: 'rgba(124,58,237,0.12)',
-            borderColor: 'rgba(124,58,237,0.3)',
-            color: '#a78bfa'
-          }}
-          onMouseOver={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.22)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(124,58,237,0.2)'; }}
-          onMouseOut={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)'; e.currentTarget.style.boxShadow = 'none'; }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          New Conversation
-        </button>
-
-        {/* Model */}
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold px-1 mb-2">Active Model</p>
-          <div className="glass rounded-xl p-3 flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" style={{ boxShadow: '0 0 8px #34d399' }} />
-            <div>
-              <p className="text-xs font-medium text-gray-200">Gemma 3 · 4B</p>
-              <p className="text-[10px] text-gray-500">Google · Free tier</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-auto glass rounded-xl p-3 text-center text-[11px] text-gray-500 leading-relaxed">
-          Built with <span className="text-violet-400 font-semibold">OpenRouter SDK</span><br />
-          React + Express · Free
-        </div>
-      </aside>
-
-      {/* ── MAIN ── */}
-      <div className="relative z-10 flex-1 flex flex-col overflow-hidden min-w-0">
-
-        {/* Topbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]"
-          style={{ background: 'rgba(11,15,25,0.7)', backdropFilter: 'blur(20px)' }}>
-          <span className="text-sm font-semibold text-gray-300">
-            {messages.length === 0 ? 'New Chat' : `Chat · ${messages.filter(m => m.role === 'user').length} messages`}
-          </span>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-emerald-300"
-            style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Online
-          </div>
-        </div>
-
-        {/* Messages or Welcome */}
-        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col">
-          {messages.length === 0 ? (
-            /* Welcome screen */
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6 text-center">
-              {/* Floating icon */}
-              <div className="animate-float w-20 h-20 rounded-2xl flex items-center justify-center text-4xl glow-purple"
-                style={{ background: 'linear-gradient(135deg, #4C1D95, #7C3AED, #6366F1)' }}>
-                ⚡
+        {/* ── SIDEBAR (Thread Manager) ── */}
+        <div className={`fixed md:relative z-40 h-full flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out border-r border-white/5 bg-[#0f0f11] ${sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:w-0 md:border-none'}`}>
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-semibold">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-white fill-white" />
               </div>
-
-              {/* Heading */}
-              <div className="space-y-3">
-                <h1 className="text-5xl font-black gradient-text leading-tight">
-                  How can I<br />help you?
-                </h1>
-                <p className="text-gray-400 text-base max-w-md leading-relaxed">
-                  Ask me anything — I'm here to assist with writing, coding, analysis, and more.
-                </p>
-              </div>
-
-              {/* Suggestion cards */}
-              <div className="grid grid-cols-2 gap-3 max-w-[560px] w-full mt-2">
-                {SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendMessage(s.text)}
-                    className="glass glass-hover rounded-2xl p-4 text-left transition-all duration-300 group"
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(124,58,237,0.15)'; }}
-                    onMouseOut={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
-                  >
-                    <div className="text-2xl mb-2">{s.icon}</div>
-                    <div className="text-sm font-semibold text-gray-200 mb-1">{s.title}</div>
-                    <div className="text-xs text-gray-500 leading-relaxed">{s.text}</div>
-                  </button>
-                ))}
-              </div>
+              <span>KlausAI</span>
             </div>
-          ) : (
-            /* Messages */
-            <div className="py-6 max-w-3xl mx-auto px-6 flex flex-col gap-6 w-full">
-              {messages.map((msg, i) => (
-                <div key={i} className="flex gap-4 animate-fade-up">
-                  {/* Avatar */}
-                  <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-sm font-bold mt-0.5 ${msg.role === 'user'
-                    ? 'text-white'
-                    : 'text-violet-300'
-                    }`}
-                    style={msg.role === 'user'
-                      ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', boxShadow: '0 0 15px rgba(99,102,241,0.4)' }
-                      : { background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.25)' }
-                    }>
-                    {msg.role === 'user' ? 'U' : '⚡'}
-                  </div>
+            <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-400"><Menu /></button>
+          </div>
 
-                  {/* Content */}
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-gray-500 mb-1.5">
-                      {msg.role === 'user' ? 'You' : 'KlausAI'}
-                    </p>
-                    <p className={`text-[0.95rem] text-gray-200 leading-[1.8] whitespace-pre-wrap ${msg.streaming ? 'after:content-["▍"] after:text-violet-400 after:animate-pulse after:ml-0.5' : ''}`}>
-                      {msg.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} className="h-4" />
-            </div>
-          )}
-        </div>
-
-        {/* ── INPUT BAR ── */}
-        <div className="px-6 pb-6 pt-3"
-          style={{ background: 'linear-gradient(to top, rgba(11,15,25,0.95) 70%, transparent)' }}>
-          <div className="max-w-3xl mx-auto">
-            {/* Input box */}
-            <div className="flex items-end gap-3 rounded-2xl px-5 py-3 transition-all duration-300"
-              style={{
-                background: 'rgba(20, 24, 40, 0.8)',
-                border: '1px solid rgba(124,58,237,0.2)',
-                backdropFilter: 'blur(20px)',
-              }}
-              onFocusCapture={e => { e.currentTarget.style.borderColor = 'rgba(124,58,237,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.08), 0 20px 60px rgba(0,0,0,0.5)'; }}
-              onBlurCapture={e => { e.currentTarget.style.borderColor = 'rgba(124,58,237,0.2)'; e.currentTarget.style.boxShadow = 'none'; }}
+          <div className="px-4 pb-4">
+            <button
+              onClick={createNewThread}
+              className="w-full flex items-center gap-2 px-3 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-all group"
             >
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                className="flex-1 bg-transparent border-none outline-none text-gray-200 text-sm leading-relaxed resize-none"
-                style={{ minHeight: '26px', maxHeight: '180px', fontFamily: 'Inter, sans-serif' }}
-                placeholder="Message KlausAI..."
-                value={input}
-                onChange={e => { setInput(e.target.value); autoResize(); }}
-                onKeyDown={handleKey}
-                disabled={streaming}
-              />
+              <Plus className="w-4 h-4 text-gray-400 group-hover:text-white" />
+              <span>New Chat</span>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-2">
+            {threads.map(t => (
               <button
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || streaming}
-                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg, #7C3AED, #6366F1)' }}
-                onMouseOver={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(124,58,237,0.5)'; } }}
-                onMouseOut={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
+                key={t._id}
+                onClick={() => selectThread(t._id)}
+                className={`w-full group flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeThreadId === t._id ? 'bg-white/[0.08] text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                <MessageSquare className={`w-4 h-4 ${activeThreadId === t._id ? 'text-violet-400' : 'text-gray-500'}`} />
+                <span className="truncate flex-1 text-left">{t.title}</span>
+                <Trash2
+                  onClick={(e) => deleteThread(t._id, e)}
+                  className="w-3.5 h-3.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </button>
+            ))}
+          </div>
+
+          <div className="p-4 mt-auto border-t border-white/5">
+            <button onClick={() => setView('dashboard')} className="w-full mb-3 flex items-center gap-3 px-3 py-2 text-sm text-gray-400 hover:text-white bg-white/5 rounded-lg">
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </button>
+            <div className="flex items-center gap-3 px-2 py-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center text-xs font-bold uppercase">
+                {session?.user?.name?.[0] || 'U'}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-xs font-semibold text-gray-200 truncate">{session?.user?.name || 'User'}</p>
+                <p className="text-[10px] text-gray-500 truncate">{session?.user?.email}</p>
+              </div>
+              <button onClick={handleLogout} title="Logout" className="p-1 rounded-lg hover:bg-red-500/10 transition-colors">
+                <LogOut className="w-4 h-4 text-gray-500 hover:text-red-400 transition-colors" />
               </button>
             </div>
-            <p className="text-center text-[11px] text-gray-600 mt-2.5">
-              Enter to send · Shift+Enter for new line · KlausAI may make mistakes
-            </p>
+          </div>
+        </div>
+
+        {/* ── MAIN CHAT AREA ── */}
+        <div className="flex-1 flex flex-col h-full relative min-w-0 bg-[#0a0a0b]">
+          <header className="h-16 flex items-center justify-between px-4 border-b border-white/5 bg-[#0a0a0b]/80 backdrop-blur-md sticky top-0 z-10">
+            <div className="flex items-center gap-3">
+              {!sidebarOpen && <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white"><PanelLeft /></button>}
+              <h2 className="text-sm font-medium text-gray-300">
+                {activeThreadId ? threads.find(t => t._id === activeThreadId)?.title : 'Select or start a chat'}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeThreadId && (
+                <>
+                  <button onClick={exportPDF} title="Export PDF" className="p-2 text-gray-400 hover:text-white transition-colors"><Download className="w-5 h-5" /></button>
+                  <button onClick={shareChat} title="Share Link" className="p-2 text-gray-400 hover:text-white transition-colors"><Share2 className="w-5 h-5" /></button>
+                </>
+              )}
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 bg-white/[0.02]">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Live</span>
+              </div>
+            </div>
+          </header>
+
+          {/* MESSAGES */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto">
+                <Sparkles className="w-12 h-12 text-violet-500/50 mb-6" />
+                <h1 className="text-2xl font-bold text-white mb-2">Welcome to KlausAI</h1>
+                <p className="text-gray-500 text-sm">Start a new conversation to experience high-speed streaming AI with memory.</p>
+              </div>
+            ) : (
+              <div className="pb-32 pt-6 flex flex-col gap-6 max-w-3xl mx-auto w-full px-4">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-fade-up`}>
+                    {msg.role === 'user' ? (
+                      <div className="max-w-[85%] bg-white/10 text-white px-5 py-3 rounded-2xl rounded-tr-md shadow-sm">
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    ) : (
+                      <div className="flex gap-4 w-full">
+                        <div className="w-8 h-8 rounded-full bg-violet-600 flex-shrink-0 flex items-center justify-center shadow-md">
+                          <Zap className="w-4 h-4 text-white fill-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="markdown-body text-[15px]">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div ref={bottomRef} className="h-4" />
+              </div>
+            )}
+          </div>
+
+          {/* INPUT */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b] to-transparent pt-10 pb-6 px-4">
+            <div className="max-w-3xl mx-auto">
+              <div className="relative rounded-2xl bg-[#1a1a1e] border border-white/10 shadow-2xl focus-within:border-violet-500/50 transition-all">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  className="w-full bg-transparent border-none outline-none text-gray-100 text-[15px] resize-none py-4 px-5 pr-14"
+                  placeholder="Message KlausAI..."
+                  value={input}
+                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'; }}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                  disabled={streaming}
+                />
+                <div className="absolute right-3 bottom-2.5">
+                  {streaming ? (
+                    <button onClick={stopStream} className="p-2 text-violet-400 hover:bg-white/5 rounded-xl"><StopCircle /></button>
+                  ) : (
+                    <button onClick={handleSend} disabled={!input.trim()} className="p-2 bg-white text-black hover:bg-gray-200 rounded-xl disabled:bg-gray-800 disabled:text-gray-600 transition-colors">
+                      <Send className="w-5 h-5 ml-0.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
