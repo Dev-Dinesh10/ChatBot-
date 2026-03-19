@@ -11,6 +11,7 @@ import {
 import axios from 'axios';
 import { useChatStream } from './hooks/useChatStream';
 import Dashboard from './components/DashboardCharts';
+import DeleteModal from './components/DeleteModal';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { ToastContainer, toast } from 'react-toastify';
@@ -25,6 +26,8 @@ export default function App() {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -113,7 +116,14 @@ export default function App() {
   // ── DELETE THREAD ──
   const deleteThread = async (id, e) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this chat?')) return;
+    // open confirmation modal instead of native confirm
+    setPendingDeleteId(id);
+    setShowDeleteModal(true);
+  };
+
+  const performDelete = async () => {
+    const id = pendingDeleteId;
+    if (!id) return;
     try {
       await axios.delete(`${BASE_URL}/api/chat/threads/${id}`, {
         headers: { Authorization: `Bearer ${session.accessToken}` }
@@ -125,7 +135,15 @@ export default function App() {
       }
     } catch (err) {
       console.error('Delete failed', err);
+    } finally {
+      setShowDeleteModal(false);
+      setPendingDeleteId(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setPendingDeleteId(null);
   };
 
   const handleSend = async () => {
@@ -264,6 +282,7 @@ export default function App() {
   return (
     <>
       <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+      <DeleteModal show={showDeleteModal} onCancel={cancelDelete} onConfirm={performDelete} />
       <div className="flex h-screen w-screen overflow-hidden bg-[#0a0a0b] text-white selection:bg-purple-500/30">
 
         {/* ── SIDEBAR (Thread Manager) ── */}

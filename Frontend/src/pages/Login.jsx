@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Zap, Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import LightPillar from '../components/LightPillar';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -19,7 +20,6 @@ export default function Login({ onLogin, goToRegister }) {
         setLoading(true);
         try {
             const res = await axios.post(`${BASE_URL}/api/auth/login`, form);
-            // Save token to localStorage for persistence across page refreshes
             localStorage.setItem('klausai_token', res.data.token);
             localStorage.setItem('klausai_user', JSON.stringify(res.data.user));
             toast.success('Logged in successfully!');
@@ -33,32 +33,42 @@ export default function Login({ onLogin, goToRegister }) {
 
     return (
         <div className="min-h-screen w-screen flex items-center justify-center bg-[#0a0a0b] px-4 relative overflow-hidden">
-            {/* Background glows */}
+            {/* LightPillar Background Effect */}
             <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-[0.06]"
-                    style={{ background: 'radial-gradient(circle, #7C3AED, transparent 70%)' }} />
-                <div className="absolute -bottom-40 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.05]"
-                    style={{ background: 'radial-gradient(circle, #6366F1, transparent 70%)' }} />
+                <LightPillar
+                    topColor="#5227FF"
+                    bottomColor="#FF9FFC"
+                    intensity={0.8}
+                    rotationSpeed={0.3}
+                    glowAmount={0.015}
+                    pillarWidth={6}
+                    pillarHeight={0.5}
+                    noiseIntensity={0.5}
+                    pillarRotation={25}
+                    interactive={false}
+                    mixBlendMode="screen"
+                    quality="high"
+                />
             </div>
 
-            <div className="relative w-full max-w-md">
+            <div className="relative w-full max-w-md z-10">
                 {/* Card */}
-                <div className="bg-[#111114] border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
+                <div className="relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
 
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
                             <Zap className="w-7 h-7 text-white fill-white" />
                         </div>
-                        <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-                        <p className="text-gray-500 text-sm mt-1">Sign in to your KlausAI account</p>
+                        <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
+                        <p className="text-gray-700 text-sm mt-1">Sign in to your KlausAI account</p>
                     </div>
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Email */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Email</label>
                             <div className="relative">
                                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                 <input
@@ -68,14 +78,14 @@ export default function Login({ onLogin, goToRegister }) {
                                     onChange={handleChange}
                                     required
                                     placeholder="you@example.com"
-                                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                    className="w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                 <input
@@ -85,10 +95,10 @@ export default function Login({ onLogin, goToRegister }) {
                                     onChange={handleChange}
                                     required
                                     placeholder="••••••••"
-                                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-12 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                    className="w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-12 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors">
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
@@ -114,23 +124,23 @@ export default function Login({ onLogin, goToRegister }) {
                             <div className="w-full h-px bg-white/[0.06]" />
                         </div>
                         <div className="relative flex justify-center">
-                            <span className="bg-[#111114] px-3 text-xs text-gray-600">Don't have an account?</span>
+                            <span className="bg-transparent px-3 text-xs text-gray-700">Don't have an account?</span>
                         </div>
                     </div>
 
                     {/* Switch to Register */}
                     <button
                         onClick={goToRegister}
-                        className="w-full py-3 rounded-xl border border-white/[0.08] text-sm font-medium text-gray-300 hover:bg-white/[0.04] hover:border-white/[0.15] transition-all"
+                        className="w-full py-3 rounded-xl border border-white/[0.08] text-sm font-medium text-gray-800 hover:bg-white/[0.04] hover:border-white/[0.15] transition-all"
                     >
                         Create an account
                     </button>
                 </div>
 
-                <p className="text-center text-xs text-gray-600 mt-6">
+                <p className="text-center text-xs text-gray-700 mt-6">
                     Secured with JWT · Powered by KlausAI
                 </p>
             </div>
-        </div >
+        </div>
     );
 }
