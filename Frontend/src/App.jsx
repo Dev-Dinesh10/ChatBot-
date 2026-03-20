@@ -6,7 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   Menu, Plus, MessageSquare,
   Send, Copy, Sparkles,
-  Trash2, StopCircle, Zap, Download, Share2, PanelLeft, LayoutDashboard, LogOut
+  Trash2, StopCircle, Zap, Download, Share2, PanelLeft, LayoutDashboard, LogOut, BookOpen
 } from 'lucide-react';
 import axios from 'axios';
 import { useChatStream } from './hooks/useChatStream';
@@ -14,15 +14,16 @@ import Dashboard from './components/DashboardCharts';
 import DeleteModal from './components/DeleteModal';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import RAGChat from './pages/RAGChat';                     // ← NEW
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const BASE_URL = 'http://localhost:5000';
 
 export default function App() {
-  const [session, setSession] = useState(null); // null until we fetch a real token
+  const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [view, setView] = useState('chat'); // 'chat' or 'dashboard'
+  const [view, setView] = useState('chat'); // 'chat' | 'dashboard' | 'rag'
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -35,11 +36,9 @@ export default function App() {
   const textareaRef = useRef(null);
   const { startStream, stopStream, streaming } = useChatStream(BASE_URL);
 
-  const [authPage, setAuthPage] = useState('login'); // 'login' | 'register'
+  const [authPage, setAuthPage] = useState('login');
 
   // ── RESTORE SESSION FROM LOCALSTORAGE ──
-  // On first load, check if user already has a saved JWT token.
-  // If yes → go straight to chat. If no → show login page.
   useEffect(() => {
     const savedToken = localStorage.getItem('klausai_token');
     const savedUser = localStorage.getItem('klausai_user');
@@ -49,12 +48,10 @@ export default function App() {
     setAuthLoading(false);
   }, []);
 
-  // ── CALLED BY Login.jsx / Register.jsx on success ──
   const handleLogin = (token, user) => {
     setSession({ user, accessToken: token });
   };
 
-  // ── LOGOUT ──
   const handleLogout = () => {
     localStorage.removeItem('klausai_token');
     localStorage.removeItem('klausai_user');
@@ -63,7 +60,6 @@ export default function App() {
     setThreads([]);
     setActiveThreadId(null);
   };
-
 
   // ── LOAD THREADS ──
   const fetchThreads = async () => {
@@ -116,7 +112,6 @@ export default function App() {
   // ── DELETE THREAD ──
   const deleteThread = async (id, e) => {
     e.stopPropagation();
-    // open confirmation modal instead of native confirm
     setPendingDeleteId(id);
     setShowDeleteModal(true);
   };
@@ -151,7 +146,6 @@ export default function App() {
 
     let currentThreadId = activeThreadId;
     if (!currentThreadId) {
-      // Auto-create thread if none active
       const res = await axios.post(`${BASE_URL}/api/chat/threads`, {}, {
         headers: { Authorization: `Bearer ${session.accessToken}` }
       });
@@ -183,7 +177,7 @@ export default function App() {
           next[next.length - 1] = { role: 'assistant', content: full, streaming: false };
           return next;
         });
-        fetchThreads(); // Refresh for title updates
+        fetchThreads();
       },
       (err) => {
         setMessages(prev => {
@@ -227,7 +221,7 @@ export default function App() {
     } catch (err) { toast.error('Share failed'); }
   };
 
-  // ── LOADING GUARD: don't render until localStorage check is done ──
+  // ── LOADING GUARD ──
   if (authLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#0a0a0b]">
@@ -241,11 +235,8 @@ export default function App() {
     );
   }
 
-  // ── AUTH GATE: No session → show Login or Register ──
+  // ── AUTH GATE ──
   if (!session) {
-    if (authPage === 'register') {
-      return <Register onLogin={handleLogin} goToLogin={() => setAuthPage('login')} />;
-    }
     return (
       <>
         <ToastContainer theme="dark" position="top-right" autoClose={3000} />
@@ -258,17 +249,69 @@ export default function App() {
     );
   }
 
+  // ── RAG VIEW ──                                          ← NEW
+  if (view === 'rag') {
+    return (
+      <>
+        <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+        <div className="flex bg-[#0a0a0b] h-screen overflow-hidden">
+          {/* Mini sidebar for navigation */}
+          <aside className="w-16 border-r border-white/5 bg-[#0f0f11] flex flex-col items-center py-6 gap-4">
+            <button
+              onClick={() => setView('chat')}
+              className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all"
+              title="Chat"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setView('dashboard')}
+              className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all"
+              title="Dashboard"
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </button>
+            <button
+              className="p-3 rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-500/20"
+              title="Documents"
+            >
+              <BookOpen className="w-5 h-5" />
+            </button>
+          </aside>
+          <div className="flex-1 overflow-hidden">
+            <RAGChat />
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── DASHBOARD VIEW ──
   if (view === 'dashboard') {
     return (
       <>
         <ToastContainer theme="dark" position="top-right" autoClose={3000} />
         <div className="flex bg-[#0a0a0b] h-screen overflow-hidden">
-          <aside className="w-16 md:w-64 border-r border-white/5 bg-[#0f0f11] flex flex-col items-center py-6 gap-6">
-            <button onClick={() => setView('chat')} className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all">
-              <MessageSquare className="w-6 h-6" />
+          <aside className="w-16 border-r border-white/5 bg-[#0f0f11] flex flex-col items-center py-6 gap-4">
+            <button
+              onClick={() => setView('chat')}
+              className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all"
+              title="Chat"
+            >
+              <MessageSquare className="w-5 h-5" />
             </button>
-            <button className="p-3 rounded-xl bg-violet-600 text-white transition-all shadow-lg shadow-violet-500/20">
-              <LayoutDashboard className="w-6 h-6" />
+            <button
+              className="p-3 rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-500/20"
+              title="Dashboard"
+            >
+              <LayoutDashboard className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setView('rag')}
+              className="p-3 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-all"
+              title="Documents"
+            >
+              <BookOpen className="w-5 h-5" />
             </button>
           </aside>
           <div className="flex-1 overflow-y-auto">
@@ -279,13 +322,14 @@ export default function App() {
     );
   }
 
+  // ── CHAT VIEW ──
   return (
     <>
       <ToastContainer theme="dark" position="top-right" autoClose={3000} />
       <DeleteModal show={showDeleteModal} onCancel={cancelDelete} onConfirm={performDelete} />
       <div className="flex h-screen w-screen overflow-hidden bg-[#0a0a0b] text-white selection:bg-purple-500/30">
 
-        {/* ── SIDEBAR (Thread Manager) ── */}
+        {/* ── SIDEBAR ── */}
         <div className={`fixed md:relative z-40 h-full flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out border-r border-white/5 bg-[#0f0f11] ${sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:w-0 md:border-none'}`}>
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-2 font-semibold">
@@ -324,12 +368,23 @@ export default function App() {
             ))}
           </div>
 
-          <div className="p-4 mt-auto border-t border-white/5">
-            <button onClick={() => setView('dashboard')} className="w-full mb-3 flex items-center gap-3 px-3 py-2 text-sm text-gray-400 hover:text-white bg-white/5 rounded-lg">
+          <div className="p-4 mt-auto border-t border-white/5 space-y-1">
+            <button
+              onClick={() => setView('dashboard')}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+            >
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
             </button>
-            <div className="flex items-center gap-3 px-2 py-2">
+            {/* ── Documents / RAG button ── */}
+            <button
+              onClick={() => setView('rag')}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-all"
+            >
+              <BookOpen className="w-4 h-4" />
+              Documents
+            </button>
+            <div className="flex items-center gap-3 px-2 py-2 mt-1">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center text-xs font-bold uppercase">
                 {session?.user?.name?.[0] || 'U'}
               </div>
