@@ -77,9 +77,7 @@ export default function Register({ goToLogin }) {
 
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
-                            <Zap className="w-7 h-7 text-white fill-white" />
-                        </div>
+                        <img src="/logo.png" alt="Lucy AI Logo" className="w-16 h-16 object-contain mb-4" />
                         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Create account</h1>
                     </div>
 

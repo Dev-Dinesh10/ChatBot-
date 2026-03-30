@@ -20,8 +20,8 @@ export default function Login({ onLogin, goToRegister }) {
         setLoading(true);
         try {
             const res = await axios.post(`${BASE_URL}/api/auth/login`, form);
-            localStorage.setItem('klausai_token', res.data.token);
-            localStorage.setItem('klausai_user', JSON.stringify(res.data.user));
+            localStorage.setItem('genai_token', res.data.token);
+            localStorage.setItem('genai_user', JSON.stringify(res.data.user));
             toast.success('Logged in successfully!');
             onLogin(res.data.token, res.data.user);
         } catch (err) {
@@ -57,11 +57,9 @@ export default function Login({ onLogin, goToRegister }) {
 
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
-                            <Zap className="w-7 h-7 text-white fill-white" />
-                        </div>
+                        <img src="/logo.png" alt="Lucy AI Logo" className="w-16 h-16 object-contain mb-4" />
                         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Welcome back</h1>
-                        <p className="text-gray-700 text-sm mt-1">Sign in to your KlausAI account</p>
+                        <p className="text-gray-700 text-sm mt-1">Sign in to your Lucy AI account</p>
                     </div>
 
                     {/* Form */}
@@ -138,7 +136,7 @@ export default function Login({ onLogin, goToRegister }) {
                 </div>
 
                 <p className="text-center text-xs text-gray-500 mt-6">
-                    Secured with JWT · Powered by KlausAI
+                    Secured with JWT · Powered by Lucy AI
                 </p>
             </div>
         </div>

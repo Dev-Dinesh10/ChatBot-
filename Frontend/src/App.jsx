@@ -14,7 +14,7 @@ import Dashboard from './components/DashboardCharts';
 import DeleteModal from './components/DeleteModal';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import RAGChat from './pages/RAGChat';                     // ← NEW
+import RAGChat from './pages/Ragchat';                     // ← NEW
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -49,8 +49,8 @@ export default function App() {
 
   // ── RESTORE SESSION FROM LOCALSTORAGE ──
   useEffect(() => {
-    const savedToken = localStorage.getItem('klausai_token');
-    const savedUser = localStorage.getItem('klausai_user');
+    const savedToken = localStorage.getItem('genai_token');
+    const savedUser = localStorage.getItem('genai_user');
     if (savedToken && savedUser) {
       setSession({ user: JSON.parse(savedUser), accessToken: savedToken });
     }
@@ -62,8 +62,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('klausai_token');
-    localStorage.removeItem('klausai_user');
+    localStorage.removeItem('genai_token');
+    localStorage.removeItem('genai_user');
     setSession(null);
     setMessages([]);
     setThreads([]);
@@ -237,10 +237,8 @@ export default function App() {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#0a0a0b]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center animate-pulse">
-            <Zap className="w-6 h-6 text-white fill-white" />
-          </div>
-          <p className="text-gray-500 text-sm">Starting KlausAI...</p>
+          <img src="/logo.png" alt="Lucy AI Logo" className="w-12 h-12 object-contain animate-pulse" />
+          <p className="text-gray-500 text-sm">Starting Lucy AI...</p>
         </div>
       </div>
     );
@@ -359,10 +357,8 @@ export default function App() {
             {/* Logo row */}
             <div className="p-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2 font-semibold">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-white fill-white" />
-                </div>
-                <span>KlausAI</span>
+                <img src="/logo.png" alt="Lucy AI Logo" className="w-8 h-8 object-contain" />
+                <span>Lucy AI</span>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -466,7 +462,7 @@ export default function App() {
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-6 text-center max-w-xl mx-auto">
                   <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-violet-500/50 mb-4 md:mb-6" />
-                  <h1 className="text-xl md:text-2xl font-bold text-white mb-2">Welcome to KlausAI</h1>
+                  <h1 className="text-xl md:text-2xl font-bold text-white mb-2">Welcome to Lucy AI</h1>
                   <p className="text-gray-500 text-sm">Start a new conversation to experience high-speed streaming AI with memory.</p>
                 </div>
               ) : (
@@ -504,7 +500,7 @@ export default function App() {
 
                           <div className="flex-1 flex flex-col gap-1.5 min-w-0">
                             <div className="flex items-center justify-between px-1">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">KlausAI</span>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lucy AI</span>
                               <button
                                 onClick={() => {
                                   navigator.clipboard.writeText(msg.content);
@@ -590,7 +586,7 @@ export default function App() {
                     ref={textareaRef}
                     rows={1}
                     className="w-full bg-transparent border-none outline-none text-gray-100 text-sm md:text-[15px] resize-none py-3.5 md:py-4 px-4 md:px-5 pr-14"
-                    placeholder="Message KlausAI..."
+                    placeholder="Message Lucy AI..."
                     value={input}
                     onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'; }}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
