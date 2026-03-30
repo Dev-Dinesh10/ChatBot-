@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.4",
+    "@react-three/fiber": "^9.5.0",
     "axios": "^1.13.6",
     "framer-motion": "^12.35.2",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.577.0",
     "next-auth": "^4.24.13",
+    "ogl": "^1.0.11",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-is": "^19.2.4",

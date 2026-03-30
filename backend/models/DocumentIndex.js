@@ -1,22 +1,20 @@
 import mongoose from 'mongoose';
 
-const ChunkSchema = new mongoose.Schema({
-    pageNum: { type: Number, default: 1 },
-    text:    { type: String, required: true },
+const chunkSchema = new mongoose.Schema({
+    text:      { type: String, required: true },  // raw chunk text
+    pageNum:   { type: Number, default: 1 },       // page number
+    chunkIndex:{ type: Number, default: 0 },       // position in doc
+    embedding: { type: [Number], required: true }, // 🆕 vector array
 }, { _id: false });
 
-const DocumentIndexSchema = new mongoose.Schema({
-    userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    docId:      { type: String, required: true, unique: true },
-    filename:   { type: String, required: true },
-    type:       { type: String, enum: ['pdf', 'text', 'url'], required: true },
-    sourceUrl:  { type: String },
-    chunks:     [ChunkSchema],
-    totalPages: { type: Number, default: 1 },
-    createdAt:  { type: Date, default: Date.now },
+const documentIndexSchema = new mongoose.Schema({
+    userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    docId:       { type: String, required: true, unique: true }, // UUID
+    filename:    { type: String, required: true },
+    type:        { type: String, enum: ['pdf', 'txt', 'url'], default: 'pdf' },
+    totalPages:  { type: Number, default: 1 },
+    chunks:      [chunkSchema],                    // all embedded chunks
+    createdAt:   { type: Date, default: Date.now },
 });
 
-// Index for fast user lookups
-DocumentIndexSchema.index({ userId: 1, createdAt: -1 });
-
-export default mongoose.model('DocumentIndex', DocumentIndexSchema);
+export default mongoose.model('DocumentIndex', documentIndexSchema);

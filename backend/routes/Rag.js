@@ -1,198 +1,196 @@
-import express            from 'express';
-import multer             from 'multer';
-import { v4 as uuidv4 }  from 'uuid';
-import DocumentIndex      from '../models/DocumentIndex.js';
-import { extractFromPDF, extractFromText, extractFromURL } from '../Utils/extracttext.js';
-import { bm25Search }     from '../Utils/Bm25.js';
-import { authMiddleware } from '../middleware/auth.js';
+import express from 'express';
+import multer from 'multer';
+import { v4 as uuidv4 } from 'uuid';
+import { authMiddleware as protect } from '../middleware/auth.js';
+import { extractFromPDF, extractFromText, extractFromURL } from '../Utils/Extracttext.js';
+import { getEmbedding, findRelevantChunks } from '../Utils/embeddings.js';
+import DocumentIndex from '../models/DocumentIndex.js';
+import Groq               from 'groq-sdk';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
+const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Multer — store files in memory (we extract text and discard the buffer)
-const upload = multer({
-    storage: multer.memoryStorage(),
-    limits:  { fileSize: 20 * 1024 * 1024 }, // 20 MB
-});
-
-// ─────────────────────────────────────────────
-// POST /api/rag/upload
-// Upload and index a PDF, TXT, or MD file
-// ─────────────────────────────────────────────
-router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
+// ─── UPLOAD FILE ──────────────────────────────────────────────────────────────
+router.post('/upload', protect, upload.single('file'), async (req, res) => {
     try {
-        const file = req.file;
-        if (!file) return res.status(400).json({ error: 'No file uploaded.' });
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
-        const ext = file.originalname.split('.').pop().toLowerCase();
-        let chunks, type;
+        const filename = req.file.originalname;
+        const ext      = filename.split('.').pop().toLowerCase();
+        const allowed  = ['pdf', 'txt', 'md', 'markdown'];
 
-        if (ext === 'pdf') {
-            chunks = await extractFromPDF(file.buffer);
-            type   = 'pdf';
-        } else if (['txt', 'md', 'markdown'].includes(ext)) {
-            chunks = extractFromText(file.buffer.toString('utf-8'));
-            type   = 'text';
-        } else {
-            return res.status(400).json({ error: 'Unsupported type. Upload a PDF, TXT, or MD file.' });
+        if (!allowed.includes(ext)) {
+            return res.status(400).json({ error: 'Only PDF, TXT, and MD files are supported.' });
         }
 
-        if (chunks.length === 0)
-            return res.status(422).json({ error: 'Could not extract any text from this file.' });
+        // 1. Extract page-aware chunks using your extractor
+        let pageChunks = [];
+        if (ext === 'pdf') {
+            pageChunks = await extractFromPDF(req.file.buffer);
+        } else {
+            const text = req.file.buffer.toString('utf-8');
+            pageChunks = extractFromText(text);
+        }
 
-        const docId = uuidv4();
-        await DocumentIndex.create({
+        if (!pageChunks.length) {
+            return res.status(400).json({ error: 'Could not extract text from file.' });
+        }
+
+        // 2. Embed each chunk with Voyage AI
+        const embeddedChunks = await Promise.all(
+            pageChunks.map(async (chunk, index) => ({
+                text:       chunk.text,
+                pageNum:    chunk.pageNum,
+                chunkIndex: index,
+                embedding:  await getEmbedding(chunk.text),
+            }))
+        );
+
+        // 3. Save to MongoDB
+        const doc = await DocumentIndex.create({
             userId:     req.user._id,
-            docId,
-            filename:   file.originalname,
-            type,
-            chunks,
-            totalPages: chunks.length,
+            docId:      uuidv4(),
+            filename,
+            type:       ext === 'pdf' ? 'pdf' : 'txt',
+            totalPages: Math.max(...pageChunks.map(c => c.pageNum)),
+            chunks:     embeddedChunks,
         });
 
-        res.status(201).json({ docId, filename: file.originalname, pages: chunks.length });
+        res.json({ 
+            filename: doc.filename, 
+            pages:    doc.totalPages,
+            docId:    doc.docId,
+        });
+
     } catch (err) {
-        console.error('RAG upload error:', err);
-        res.status(500).json({ error: 'Failed to process document.' });
+        console.error('Upload error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
-// ─────────────────────────────────────────────
-// POST /api/rag/url
-// Fetch and index a web page
-// ─────────────────────────────────────────────
-router.post('/url', authMiddleware, async (req, res) => {
+// ─── INDEX URL ────────────────────────────────────────────────────────────────
+router.post('/url', protect, async (req, res) => {
     try {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required.' });
 
-        try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL.' }); }
+        // 1. Extract chunks + title from URL
+        const { chunks: pageChunks, title: filename } = await extractFromURL(url);
 
-        const { chunks, title } = await extractFromURL(url);
+        if (!pageChunks.length) {
+            return res.status(400).json({ error: 'Could not extract text from URL.' });
+        }
 
-        if (chunks.length === 0)
-            return res.status(422).json({ error: 'Could not extract any text from this URL.' });
+        // 2. Embed each chunk
+        const embeddedChunks = await Promise.all(
+            pageChunks.map(async (chunk, index) => ({
+                text:       chunk.text,
+                pageNum:    chunk.pageNum,
+                chunkIndex: index,
+                embedding:  await getEmbedding(chunk.text),
+            }))
+        );
 
-        const docId = uuidv4();
-        await DocumentIndex.create({
+        // 3. Save to MongoDB
+        const doc = await DocumentIndex.create({
             userId:     req.user._id,
-            docId,
-            filename:   title,
+            docId:      uuidv4(),
+            filename,
             type:       'url',
-            sourceUrl:  url,
-            chunks,
-            totalPages: chunks.length,
+            totalPages: 1,
+            chunks:     embeddedChunks,
         });
 
-        res.status(201).json({ docId, filename: title, pages: chunks.length });
+        res.json({ filename: doc.filename, docId: doc.docId });
+
     } catch (err) {
-        console.error('RAG URL error:', err);
-        res.status(500).json({ error: 'Failed to fetch or process URL.' });
+        console.error('URL index error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
-// ─────────────────────────────────────────────
-// POST /api/rag/chat
-// Ask a question about an indexed document
-// Body: { docId, query, history?: [{role, content}] }
-// ─────────────────────────────────────────────
-router.post('/chat', authMiddleware, async (req, res) => {
+// ─── GET ALL DOCUMENTS ────────────────────────────────────────────────────────
+router.get('/documents', protect, async (req, res) => {
     try {
-        const { docId, query, history = [] } = req.body;
-        if (!docId || !query)
-            return res.status(400).json({ error: 'docId and query are required.' });
-
-        const doc = await DocumentIndex.findOne({ docId, userId: req.user._id });
-        if (!doc) return res.status(404).json({ error: 'Document not found.' });
-
-        // BM25: retrieve top-5 most relevant chunks
-        const topChunks = bm25Search(query, doc.chunks, 5);
-        const contextChunks = topChunks.length > 0 ? topChunks : doc.chunks;
-
-        const context = contextChunks
-            .map(c => `[Page ${c.pageNum}]\n${c.text}`)
-            .join('\n\n---\n\n');
-
-        const systemPrompt =
-`You are a precise document assistant. Answer questions using ONLY the context provided.
-If the answer is not in the context, say "I couldn't find that in the document."
-Always cite the page number (e.g. "According to page 3...") when referencing specific information.
-Be concise and accurate.
-
-Document: "${doc.filename}"
-
-Relevant context:
-${context}`;
-
-        // Build message history (last 10 turns max)
-        const recentHistory = history.slice(-10).map(h => ({
-            role:    h.role === 'assistant' ? 'model' : 'user',
-            parts:   [{ text: h.content }],
-        }));
-
-        // ── Groq API call (free) ──
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method:  'POST',
-            headers: {
-                'Content-Type':  'application/json',
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model:      'llama-3.3-70b-versatile',
-                max_tokens: 1024,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    ...history.slice(-10).map(h => ({ role: h.role, content: h.content })),
-                    { role: 'user', content: query },
-                ],
-            }),
-        });
-
-        const groqData = await response.json();
-
-        if (!response.ok)
-            throw new Error(groqData.error?.message || 'Groq API error');
-
-        const answer      = groqData.choices[0].message.content;
-        const sourcedPages = [...new Set(contextChunks.map(c => c.pageNum))].sort((a, b) => a - b);
-
-        res.json({ answer, sourcedPages });
-    } catch (err) {
-        console.error('RAG chat error:', err);
-        res.status(500).json({ error: 'Failed to generate a response.' });
-    }
-});
-
-// ─────────────────────────────────────────────
-// GET /api/rag/documents
-// ─────────────────────────────────────────────
-router.get('/documents', authMiddleware, async (req, res) => {
-    try {
-        const docs = await DocumentIndex
-            .find({ userId: req.user._id })
-            .select('docId filename type totalPages sourceUrl createdAt')
-            .sort({ createdAt: -1 });
+        const docs = await DocumentIndex.find(
+            { userId: req.user._id },
+            { chunks: 0 }          // exclude heavy chunk data from list
+        ).sort({ createdAt: -1 });
 
         res.json(docs);
     } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch documents.' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-// ─────────────────────────────────────────────
-// DELETE /api/rag/documents/:docId
-// ─────────────────────────────────────────────
-router.delete('/documents/:docId', authMiddleware, async (req, res) => {
+// ─── CHAT WITH DOCUMENT ───────────────────────────────────────────────────────
+router.post('/chat', protect, async (req, res) => {
     try {
-        const result = await DocumentIndex.deleteOne({
-            docId:  req.params.docId,
-            userId: req.user._id,
-        });
-        if (result.deletedCount === 0)
-            return res.status(404).json({ error: 'Document not found.' });
+        const { docId, query, history = [] } = req.body;
+        if (!docId || !query) {
+            return res.status(400).json({ error: 'docId and query are required.' });
+        }
 
-        res.json({ success: true });
+        // 1. Load document with chunks
+        const doc = await DocumentIndex.findOne({ docId, userId: req.user._id });
+        if (!doc) return res.status(404).json({ error: 'Document not found.' });
+
+        // 2. Find top 3 relevant chunks via cosine similarity
+        const topChunks = await findRelevantChunks(query, doc.chunks, 3);
+
+        // 3. Build context string
+        const context = topChunks
+            .map((c, i) => `[Source ${i + 1} — Page ${c.pageNum}]:\n${c.text}`)
+            .join('\n\n');
+
+        // 4. Build chat history for Groq (last 6 messages only)
+        const chatHistory = history.slice(-6).map(m => ({
+            role:    m.role,
+            content: m.content,
+        }));
+
+        // 5. Call Groq LLM with context injected
+        const completion = await groq.chat.completions.create({
+            model:    'llama-3.3-70b-versatile',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are a helpful document assistant. Answer questions using ONLY 
+the context below. If the answer is not in the context, say "I don't have 
+enough information in this document to answer that."
+
+Context:
+${context}`,
+                },
+                ...chatHistory,
+                { role: 'user', content: query },
+            ],
+            max_tokens:  1024,
+            temperature: 0.3,
+        });
+
+        const answer       = completion.choices[0].message.content;
+        const sourcedPages = [...new Set(topChunks.map(c => c.pageNum))];
+
+        res.json({ answer, sourcedPages });
+
     } catch (err) {
-        res.status(500).json({ error: 'Failed to delete document.' });
+        console.error('Chat error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── DELETE DOCUMENT ──────────────────────────────────────────────────────────
+router.delete('/documents/:docId', protect, async (req, res) => {
+    try {
+        await DocumentIndex.findOneAndDelete({ 
+            docId:  req.params.docId, 
+            userId: req.user._id 
+        });
+        res.json({ message: 'Document deleted successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

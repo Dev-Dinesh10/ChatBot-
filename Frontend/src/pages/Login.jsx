@@ -53,24 +53,24 @@ export default function Login({ onLogin, goToRegister }) {
 
             <div className="relative w-full max-w-md z-10">
                 {/* Card */}
-                <div className="relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl">
+                <div className="relative bg-white/40 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-8 shadow-2xl">
 
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
                             <Zap className="w-7 h-7 text-white fill-white" />
                         </div>
-                        <h1 className="text-xl sm:text-2xl font-bold text-white">Welcome back</h1>
-                        <p className="text-gray-400 text-sm mt-1">Sign in to your KlausAI account</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Welcome back</h1>
+                        <p className="text-gray-700 text-sm mt-1">Sign in to your KlausAI account</p>
                     </div>
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Email */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                                 <input
                                     type="email"
                                     name="email"
@@ -78,16 +78,16 @@ export default function Login({ onLogin, goToRegister }) {
                                     onChange={handleChange}
                                     required
                                     placeholder="you@example.com"
-                                    className="w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                    className="w-full bg-white/50 border border-black/5 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-violet-600/60 focus:ring-1 focus:ring-violet-600/30 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Password</label>
                             <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     name="password"
@@ -95,10 +95,10 @@ export default function Login({ onLogin, goToRegister }) {
                                     onChange={handleChange}
                                     required
                                     placeholder="••••••••"
-                                    className="w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-12 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                    className="w-full bg-white/50 border border-black/5 rounded-xl pl-10 pr-12 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-violet-600/60 focus:ring-1 focus:ring-violet-600/30 transition-all"
                                 />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors">
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black transition-colors">
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
@@ -124,14 +124,14 @@ export default function Login({ onLogin, goToRegister }) {
                             <div className="w-full h-px bg-white/[0.06]" />
                         </div>
                         <div className="relative flex justify-center">
-                            <span className="bg-transparent px-3 text-xs text-gray-400">Don't have an account?</span>
+                            <span className="bg-transparent px-3 text-xs text-gray-600">Don't have an account?</span>
                         </div>
                     </div>
 
                     {/* Switch to Register */}
                     <button
                         onClick={goToRegister}
-                        className="w-full py-3 rounded-xl border border-white/[0.08] text-sm font-medium text-gray-300 hover:bg-white/[0.04] hover:border-white/[0.15] transition-all"
+                        className="w-full py-3 rounded-xl border border-black/10 text-sm font-medium text-gray-700 hover:bg-black/5 hover:border-black/20 transition-all"
                     >
                         Create an account
                     </button>

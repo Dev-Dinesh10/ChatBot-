@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     FileText, Globe, Trash2, MessageSquare,
     Send, Zap, X, Loader2, FileUp,
-    BookOpen, Link2, CheckCircle2, Hash, Menu
+    BookOpen, Link2, CheckCircle2, Hash, Menu, Copy
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -361,10 +361,15 @@ export default function RAGChat() {
                                     {doc.totalPages} page{doc.totalPages !== 1 ? 's' : ''} · {formatDate(doc.createdAt)}
                                 </p>
                             </div>
-                            <button onClick={(e) => deleteDoc(doc.docId, e)}
-                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/20 text-gray-600 hover:text-red-400 transition-all">
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => deleteDoc(doc.docId, e)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteDoc(doc.docId, e); }}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/20 text-gray-600 hover:text-red-400 transition-all cursor-pointer"
+                            >
                                 <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            </div>
                         </button>
                     ))
                 )}
