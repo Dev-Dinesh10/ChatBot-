@@ -53,7 +53,7 @@ export default function Register({ goToLogin }) {
     const inputClass = "w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all";
 
     return (
-        <div className="min-h-screen w-screen flex items-center justify-center bg-[#0a0a0b] px-4 relative overflow-hidden">
+        <div className="min-h-screen w-screen flex items-center justify-center bg-[#0a0a0b] px-4 py-6 relative overflow-hidden">
             {/* LightPillar Background Effect */}
             <div className="pointer-events-none fixed inset-0 overflow-hidden">
                 <LightPillar
@@ -73,20 +73,20 @@ export default function Register({ goToLogin }) {
             </div>
 
             <div className="relative w-full max-w-md z-10">
-                <div className="relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
+                <div className="relative bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl">
 
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
                             <Zap className="w-7 h-7 text-white fill-white" />
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">Create account</h1>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Full Name */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Full Name</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Full Name</label>
                             <div className="relative">
                                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                                 <input
@@ -104,7 +104,7 @@ export default function Register({ goToLogin }) {
 
                         {/* Email */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
                             <div className="relative">
                                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                                 <input
@@ -122,7 +122,7 @@ export default function Register({ goToLogin }) {
 
                         {/* Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                                 <input
@@ -173,7 +173,7 @@ export default function Register({ goToLogin }) {
 
                         {/* Confirm Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Confirm Password</label>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Confirm Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                                 <input
@@ -215,20 +215,20 @@ export default function Register({ goToLogin }) {
                             <div className="w-full h-px bg-white/[0.06]" />
                         </div>
                         <div className="relative flex justify-center">
-                            <span className="bg-transparent px-3 text-xs text-gray-700">Already have an account?</span>
+                            <span className="bg-transparent px-3 text-xs text-gray-400">Already have an account?</span>
                         </div>
                     </div>
 
                     {/* Switch to Login */}
                     <button
                         onClick={goToLogin}
-                        className="w-full py-3 rounded-xl border border-white/[0.08] text-sm font-medium text-gray-800 hover:bg-white/[0.04] hover:border-white/[0.15] transition-all"
+                        className="w-full py-3 rounded-xl border border-white/[0.08] text-sm font-medium text-gray-300 hover:bg-white/[0.04] hover:border-white/[0.15] transition-all"
                     >
                         Sign in instead
                     </button>
                 </div>
 
-                <p className="text-center text-xs text-gray-700 mt-6">
+                <p className="text-center text-xs text-gray-500 mt-6">
                     By creating an account you agree to our Terms of Service
                 </p>
             </div>
