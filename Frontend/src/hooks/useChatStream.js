@@ -19,6 +19,17 @@ export const useChatStream = (baseUrl) => {
                 signal: abortControllerRef.current.signal
             });
 
+            // ✅ Handle non-OK responses before reading stream
+            if (!response.ok) {
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    onError('Session expired. Please log in again.');
+                    window.location.href = '/login';
+                    return;
+                }
+                throw new Error(`Server error: ${response.status}`);
+            }
+
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let fullText = '';
@@ -43,7 +54,17 @@ export const useChatStream = (baseUrl) => {
                                 fullText += parsed.content;
                                 onChunk(parsed.content, fullText);
                             }
-                            if (parsed.error) throw new Error(parsed.error);
+                            // ✅ Handle token expiry mid-stream
+                            if (parsed.error) {
+                                if (parsed.error.toLowerCase().includes('expired') ||
+                                    parsed.error.toLowerCase().includes('unauthorized')) {
+                                    localStorage.removeItem('token');
+                                    onError('Session expired. Please log in again.');
+                                    window.location.href = '/login';
+                                    return;
+                                }
+                                throw new Error(parsed.error);
+                            }
                         } catch (e) {
                             console.error('JSON Parse Error:', e);
                         }

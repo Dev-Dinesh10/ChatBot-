@@ -11,7 +11,7 @@ const BASE_URL = 'http://localhost:5000';
 
 // ─── helpers ─────────────────────────────────────
 function getAuthHeaders() {
-    const token = localStorage.getItem('klausai_token');
+    const token = localStorage.getItem('genai_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
