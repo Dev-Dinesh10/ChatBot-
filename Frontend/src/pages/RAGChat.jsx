@@ -16,9 +16,9 @@ function getAuthHeaders() {
 }
 
 function typeIcon(type) {
-    if (type === 'pdf')  return <FileText className="w-4 h-4 text-rose-400" />;
-    if (type === 'url')  return <Globe    className="w-4 h-4 text-sky-400"  />;
-    return                      <FileText className="w-4 h-4 text-amber-400"/>;
+    if (type === 'pdf') return <FileText className="w-4 h-4 text-rose-400" />;
+    if (type === 'url') return <Globe className="w-4 h-4 text-sky-400" />;
+    return <FileText className="w-4 h-4 text-amber-400" />;
 }
 
 function formatDate(iso) {
@@ -27,21 +27,21 @@ function formatDate(iso) {
 
 // ─── RAGChat Component ────────────────────────────
 export default function RAGChat() {
-    const [documents,    setDocuments]    = useState([]);
-    const [activeDoc,    setActiveDoc]    = useState(null);
-    const [messages,     setMessages]     = useState([]);
-    const [input,        setInput]        = useState('');
-    const [loading,      setLoading]      = useState(false);
-    const [uploading,    setUploading]    = useState(false);
-    const [urlInput,     setUrlInput]     = useState('');
-    const [urlMode,      setUrlMode]      = useState(false);
-    const [dragging,     setDragging]     = useState(false);
-    const [docsLoading,  setDocsLoading]  = useState(true);
-    const [sidebarOpen,  setSidebarOpen]  = useState(false);
+    const [documents, setDocuments] = useState([]);
+    const [activeDoc, setActiveDoc] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [urlInput, setUrlInput] = useState('');
+    const [urlMode, setUrlMode] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const [docsLoading, setDocsLoading] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const messagesEndRef = useRef(null);
-    const fileInputRef   = useRef(null);
-    const inputRef       = useRef(null);
+    const fileInputRef = useRef(null);
+    const inputRef = useRef(null);
 
     // ── Auto-open sidebar on desktop ────────────
     useEffect(() => {
@@ -78,7 +78,7 @@ export default function RAGChat() {
     function selectDoc(doc) {
         setActiveDoc(doc);
         setMessages([{
-            role:   'assistant',
+            role: 'assistant',
             content: `I've loaded **${doc.filename}** (${doc.totalPages} page${doc.totalPages !== 1 ? 's' : ''}). Ask me anything about it!`,
         }]);
         if (window.innerWidth < 768) setSidebarOpen(false);
@@ -88,7 +88,7 @@ export default function RAGChat() {
     // ── upload file ──────────────────────────────
     async function uploadFile(file) {
         const allowed = ['pdf', 'txt', 'md', 'markdown'];
-        const ext     = file.name.split('.').pop().toLowerCase();
+        const ext = file.name.split('.').pop().toLowerCase();
         if (!allowed.includes(ext)) {
             toast.error('Only PDF, TXT, and MD files are supported.');
             return;
@@ -160,22 +160,22 @@ export default function RAGChat() {
 
         try {
             const { data } = await axios.post(`${BASE_URL}/api/rag/chat`, {
-                docId:   activeDoc.docId,
-                query:   userMsg.content,
+                docId: activeDoc.docId,
+                query: userMsg.content,
                 history: messages.filter(m => m.role !== 'system'),
             }, { headers: getAuthHeaders() });
 
             setMessages(prev => [...prev, {
-                role:        'assistant',
-                content:     data.answer,
+                role: 'assistant',
+                content: data.answer,
                 sourcedPages: data.sourcedPages,
             }]);
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to get a response.');
             setMessages(prev => [...prev, {
-                role:    'assistant',
+                role: 'assistant',
                 content: 'Sorry, something went wrong. Please try again.',
-                error:   true,
+                error: true,
             }]);
         } finally {
             setLoading(false);
@@ -217,8 +217,8 @@ export default function RAGChat() {
                     <div className="flex items-start gap-3 md:gap-4 w-full">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0 mt-1">
-                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
-                                <Zap className="w-4 h-4 md:w-5 md:h-5 text-white fill-white" />
+                            <div className="w-11 h-11 md:w-12 md:h-12 rounded-xl overflow-hidden bg-[#18181c] shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform border border-white/10">
+                                <img src="/logo.png" alt="Lucy AI" className="w-full h-full object-contain" />
                             </div>
                             <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#0a0a0b] rounded-full" />
                         </div>
@@ -290,9 +290,8 @@ export default function RAGChat() {
 
                 {!urlMode ? (
                     <div
-                        className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-                            dragging ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/[0.10] hover:border-white/20 hover:bg-white/[0.03]'
-                        }`}
+                        className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${dragging ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/[0.10] hover:border-white/20 hover:bg-white/[0.03]'
+                            }`}
                         onClick={() => fileInputRef.current?.click()}
                         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                         onDragLeave={() => setDragging(false)}
@@ -349,11 +348,10 @@ export default function RAGChat() {
                 ) : (
                     documents.map(doc => (
                         <button key={doc.docId} onClick={() => selectDoc(doc)}
-                            className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all group ${
-                                activeDoc?.docId === doc.docId
-                                    ? 'bg-violet-600/20 border border-violet-500/30'
-                                    : 'hover:bg-white/[0.04] border border-transparent'
-                            }`}>
+                            className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all group ${activeDoc?.docId === doc.docId
+                                ? 'bg-violet-600/20 border border-violet-500/30'
+                                : 'hover:bg-white/[0.04] border border-transparent'
+                                }`}>
                             <div className="mt-0.5">{typeIcon(doc.type)}</div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-gray-200 truncate">{doc.filename}</p>

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Zap, Eye, EyeOff, Mail, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import LightPillar from '../components/LightPillar';
+import DarkVeil from '../components/DarkVeil';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -50,43 +50,59 @@ export default function Register({ goToLogin }) {
         }
     };
 
-    const inputClass = "w-full bg-white/[0.15] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all";
+    const inputStyle = {
+        background: 'rgba(255,255,255,0.07)',
+        border: '1px solid rgba(255,255,255,0.10)',
+        color: '#fff',
+    };
 
     return (
-        <div className="min-h-screen w-screen flex items-center justify-center bg-[#0a0a0b] px-4 py-6 relative overflow-hidden">
-            {/* LightPillar Background Effect */}
-            <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                <LightPillar
-                    topColor="#5227FF"
-                    bottomColor="#FF9FFC"
-                    intensity={0.8}
-                    rotationSpeed={0.3}
-                    glowAmount={0.015}
-                    pillarWidth={6}
-                    pillarHeight={0.5}
-                    noiseIntensity={0.5}
-                    pillarRotation={25}
-                    interactive={false}
-                    mixBlendMode="screen"
-                    quality="high"
+        <div className="min-h-screen w-screen flex items-center justify-center bg-[#050507] px-4 py-6 relative overflow-hidden">
+            {/* DarkVeil WebGL Background */}
+            <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+                <DarkVeil
+                    hueShift={20}
+                    noiseIntensity={0.04}
+                    scanlineIntensity={0}
+                    speed={0.4}
+                    scanlineFrequency={0}
+                    warpAmount={0.3}
+                    resolutionScale={1}
                 />
             </div>
 
-            <div className="relative w-full max-w-md z-10">
-                <div className="relative bg-white/40 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 sm:p-8 shadow-2xl">
+            {/* Subtle vignette overlay */}
+            <div
+                className="fixed inset-0 pointer-events-none"
+                style={{
+                    zIndex: 1,
+                    background: 'radial-gradient(ellipse at center, transparent 30%, rgba(5,5,7,0.7) 100%)',
+                }}
+            />
 
+            <div className="relative w-full max-w-sm" style={{ zIndex: 2 }}>
+                <div
+                    className="relative rounded-3xl p-6 shadow-2xl"
+                    style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        backdropFilter: 'blur(24px)',
+                        WebkitBackdropFilter: 'blur(24px)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        boxShadow: '0 8px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)',
+                    }}
+                >
                     {/* Logo */}
-                    <div className="flex flex-col items-center mb-8">
-                        <img src="/logo.png" alt="Lucy AI Logo" className="w-16 h-16 object-contain mb-4" />
-                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Create account</h1>
+                    <div className="flex flex-col items-center mb-6">
+                        <img src="/logo.png" alt="Lucy AI Logo" className="w-24 h-24 object-contain mb-4 drop-shadow-lg" />
+                        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Create account</h1>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Full Name */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Full Name</label>
+                            <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Full Name</label>
                             <div className="relative">
-                                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
                                 <input
                                     type="text"
                                     name="name"
@@ -95,16 +111,17 @@ export default function Register({ goToLogin }) {
                                     required
                                     autoComplete="name"
                                     placeholder="Your name"
-                                    className="w-full bg-white/50 border border-black/5 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-violet-600/60 focus:ring-1 focus:ring-violet-600/30 transition-all"
+                                    style={inputStyle}
+                                    className="w-full rounded-xl pl-10 pr-4 py-2.5 text-sm placeholder-white/30 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Email */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Email</label>
+                            <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
                                 <input
                                     type="email"
                                     name="email"
@@ -113,16 +130,17 @@ export default function Register({ goToLogin }) {
                                     required
                                     autoComplete="email"
                                     placeholder="you@example.com"
-                                    className="w-full bg-white/50 border border-black/5 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-violet-600/60 focus:ring-1 focus:ring-violet-600/30 transition-all"
+                                    style={inputStyle}
+                                    className="w-full rounded-xl pl-10 pr-4 py-2.5 text-sm placeholder-white/30 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                             </div>
                         </div>
 
                         {/* Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Password</label>
+                            <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Password</label>
                             <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     name="password"
@@ -131,12 +149,13 @@ export default function Register({ goToLogin }) {
                                     required
                                     autoComplete="new-password"
                                     placeholder="Min 6 characters"
-                                    className="w-full bg-white/50 border border-black/5 rounded-xl pl-10 pr-12 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:border-violet-600/60 focus:ring-1 focus:ring-violet-600/30 transition-all"
+                                    style={inputStyle}
+                                    className="w-full rounded-xl pl-10 pr-12 py-2.5 text-sm placeholder-white/30 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(v => !v)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black transition-colors"
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
                                 >
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -150,7 +169,7 @@ export default function Register({ goToLogin }) {
                                             <div
                                                 key={i}
                                                 className="h-1 flex-1 rounded-full transition-all duration-300"
-                                                style={{ background: strengthScore >= i ? strengthColor : '#d1d5db' }}
+                                                style={{ background: strengthScore >= i ? strengthColor : 'rgba(255,255,255,0.10)' }}
                                             />
                                         ))}
                                     </div>
@@ -160,7 +179,7 @@ export default function Register({ goToLogin }) {
                                             { label: 'Uppercase', ok: strength.upper },
                                             { label: 'Number', ok: strength.number },
                                         ].map(({ label, ok }) => (
-                                            <span key={label} className={`flex items-center gap-1 transition-colors ${ok ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                            <span key={label} className={`flex items-center gap-1 transition-colors ${ok ? 'text-emerald-400' : 'text-white/30'}`}>
                                                 <CheckCircle2 className="w-3 h-3" /> {label}
                                             </span>
                                         ))}
@@ -171,9 +190,9 @@ export default function Register({ goToLogin }) {
 
                         {/* Confirm Password */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-700 uppercase tracking-wider">Confirm Password</label>
+                            <label className="text-xs font-medium text-white/60 uppercase tracking-wider">Confirm Password</label>
                             <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
                                 <input
                                     type="password"
                                     name="confirm"
@@ -182,13 +201,16 @@ export default function Register({ goToLogin }) {
                                     required
                                     autoComplete="new-password"
                                     placeholder="Re-enter password"
-                                    className={`w-full bg-white/50 border rounded-xl pl-10 pr-10 py-3 text-sm text-gray-900 placeholder-gray-500 outline-none focus:ring-1 transition-all ${form.confirm && form.confirm !== form.password
-                                        ? 'border-red-500/40 focus:border-red-500/60 focus:ring-red-500/20'
-                                        : 'border-black/5 focus:border-violet-600/60 focus:ring-violet-600/30'
-                                        }`}
+                                    style={{
+                                        ...inputStyle,
+                                        border: form.confirm && form.confirm !== form.password
+                                            ? '1px solid rgba(239,68,68,0.5)'
+                                            : '1px solid rgba(255,255,255,0.10)',
+                                    }}
+                                    className="w-full rounded-xl pl-10 pr-10 py-2.5 text-sm placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500/30 transition-all"
                                 />
                                 {form.confirm && form.confirm === form.password && (
-                                    <CheckCircle2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500 pointer-events-none" />
+                                    <CheckCircle2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400 pointer-events-none" />
                                 )}
                             </div>
                         </div>
@@ -197,7 +219,7 @@ export default function Register({ goToLogin }) {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold text-sm hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-violet-500/20 hover:-translate-y-0.5"
+                            className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold text-sm hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:-translate-y-0.5"
                         >
                             {loading ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -208,25 +230,29 @@ export default function Register({ goToLogin }) {
                     </form>
 
                     {/* Divider */}
-                    <div className="relative my-6">
+                    <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
-                            <div className="w-full h-px bg-white/[0.06]" />
+                            <div className="w-full h-px bg-white/[0.08]" />
                         </div>
                         <div className="relative flex justify-center">
-                            <span className="bg-transparent px-3 text-xs text-gray-700">Already have an account?</span>
+                            <span className="bg-transparent px-3 text-xs text-white/40">Already have an account?</span>
                         </div>
                     </div>
 
                     {/* Switch to Login */}
                     <button
                         onClick={goToLogin}
-                        className="w-full py-3 rounded-xl border border-black/10 text-sm font-medium text-gray-700 hover:bg-black/5 hover:border-black/20 transition-all"
+                        className="w-full py-3 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-all"
+                        style={{
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            background: 'rgba(255,255,255,0.04)',
+                        }}
                     >
                         Sign in instead
                     </button>
                 </div>
 
-                <p className="text-center text-xs text-gray-500 mt-6">
+                <p className="text-center text-xs text-white/25 mt-6">
                     By creating an account you agree to our Terms of Service
                 </p>
             </div>

@@ -237,7 +237,7 @@ export default function App() {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#0a0a0b]">
         <div className="flex flex-col items-center gap-4">
-          <img src="/logo.png" alt="Lucy AI Logo" className="w-12 h-12 object-contain animate-pulse" />
+          <img src="/logo.png" alt="Lucy AI Logo" className="w-16 h-16 object-contain animate-pulse drop-shadow-2xl" />
           <p className="text-gray-500 text-sm">Starting Lucy AI...</p>
         </div>
       </div>
@@ -357,8 +357,8 @@ export default function App() {
             {/* Logo row */}
             <div className="p-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2 font-semibold">
-                <img src="/logo.png" alt="Lucy AI Logo" className="w-8 h-8 object-contain" />
-                <span>Lucy AI</span>
+                <img src="/logo.png" alt="Lucy AI Logo" className="w-12 h-12 object-contain drop-shadow-md" />
+                <span className="text-white font-bold text-lg">Lucy AI</span>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -461,7 +461,9 @@ export default function App() {
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-6 text-center max-w-xl mx-auto">
-                  <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-violet-500/50 mb-4 md:mb-6" />
+                  <div className="mb-8">
+                    <img src="/logo.png" alt="Lucy AI" className="w-28 h-28 object-contain drop-shadow-2xl opacity-60 grayscale-[10%]" />
+                  </div>
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">Welcome to Lucy AI</h1>
                   <p className="text-gray-500 text-sm">Start a new conversation to experience high-speed streaming AI with memory.</p>
                 </div>
@@ -492,8 +494,8 @@ export default function App() {
                         <div className="flex items-start gap-3 md:gap-4 w-full">
                           {/* AI Avatar */}
                           <div className="relative flex-shrink-0 mt-1">
-                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
-                              <Zap className="w-4 h-4 md:w-5 md:h-5 text-white fill-white" />
+                            <div className="w-11 h-11 md:w-12 md:h-12 rounded-xl overflow-hidden bg-[#18181c] shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform border border-white/10">
+                              <img src="/logo.png" alt="Lucy AI" className="w-full h-full object-contain" />
                             </div>
                             <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#0a0a0b] rounded-full" />
                           </div>
