@@ -156,9 +156,14 @@ router.post('/chat', protect, async (req, res) => {
             messages: [
                 {
                     role: 'system',
-                    content: `You are a helpful document assistant. Answer questions using ONLY 
-the context below. If the answer is not in the context, say "I don't have 
-enough information in this document to answer that."
+                    content: `You are a helpful assistant. Answer the question using ONLY the provided context below.
+
+IMPORTANT FORMATTING RULES:
+- First, give a short paragraph summary of the answer.
+- Then, provide a clear bullet-point list with more details or specific points from the context.
+- Keep answers highly structured and readable.
+- Do NOT return everything in one single paragraph.
+- If the answer is not in the context, say: "I don't have enough information in this document to answer that."
 
 Context:
 ${context}`,
