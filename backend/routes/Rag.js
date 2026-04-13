@@ -3,28 +3,24 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware as protect } from '../middleware/auth.js';
 import { extractFromPDF, extractFromText, extractFromURL } from '../Utils/Extracttext.js';
-import { getEmbedding, findRelevantChunks } from '../Utils/embeddings.js';
+import { getDocumentEmbedding, findRelevantChunks } from '../Utils/embeddings.js';
 import DocumentIndex from '../models/DocumentIndex.js';
 import Groq from 'groq-sdk';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ─── UPLOAD FILE ──────────────────────────────────────────────────────────────
+/* ========================= UPLOAD ========================= */
 router.post('/upload', protect, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
         const filename = req.file.originalname;
-        const ext      = filename.split('.').pop().toLowerCase();
-        const allowed  = ['pdf', 'txt', 'md', 'markdown'];
-
-        if (!allowed.includes(ext)) {
-            return res.status(400).json({ error: 'Only PDF, TXT, and MD files are supported.' });
-        }
+        const ext = filename.split('.').pop().toLowerCase();
 
         let pageChunks = [];
+
         if (ext === 'pdf') {
             pageChunks = await extractFromPDF(req.file.buffer);
         } else {
@@ -32,79 +28,36 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
             pageChunks = extractFromText(text);
         }
 
-        if (!pageChunks.length) {
-            return res.status(400).json({ error: 'Could not extract text from file.' });
-        }
+        const docId = uuidv4();
 
         const embeddedChunks = await Promise.all(
             pageChunks.map(async (chunk, index) => ({
-                text:       chunk.text,
-                pageNum:    chunk.pageNum,
+                text: chunk.text,
+                pageNum: chunk.pageNum,
                 chunkIndex: index,
-                embedding:  await getEmbedding(chunk.text),
+                embedding: await getDocumentEmbedding(chunk.text),
+                docId,
+                userId: req.user._id,
             }))
         );
 
         const doc = await DocumentIndex.create({
-            userId:     req.user._id,
-            docId:      uuidv4(),
+            userId: req.user._id,
+            docId,
             filename,
-            type:       ext === 'pdf' ? 'pdf' : 'txt',
-            totalPages: Math.max(...pageChunks.map(c => c.pageNum)),
-            chunks:     embeddedChunks,
-        });
-
-        res.json({ 
-            filename: doc.filename, 
-            pages:    doc.totalPages,
-            docId:    doc.docId,
-        });
-
-    } catch (err) {
-        console.error('Upload error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── INDEX URL ────────────────────────────────────────────────────────────────
-router.post('/url', protect, async (req, res) => {
-    try {
-        const { url } = req.body;
-        if (!url) return res.status(400).json({ error: 'URL is required.' });
-
-        const { chunks: pageChunks, title: filename } = await extractFromURL(url);
-
-        if (!pageChunks.length) {
-            return res.status(400).json({ error: 'Could not extract text from URL.' });
-        }
-
-        const embeddedChunks = await Promise.all(
-            pageChunks.map(async (chunk, index) => ({
-                text:       chunk.text,
-                pageNum:    chunk.pageNum,
-                chunkIndex: index,
-                embedding:  await getEmbedding(chunk.text),
-            }))
-        );
-
-        const doc = await DocumentIndex.create({
-            userId:     req.user._id,
-            docId:      uuidv4(),
-            filename,
-            type:       'url',
             totalPages: 1,
-            chunks:     embeddedChunks,
+            chunks: embeddedChunks,
         });
 
-        res.json({ filename: doc.filename, docId: doc.docId });
+        res.json({ docId: doc.docId, filename });
 
     } catch (err) {
-        console.error('URL index error:', err);
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// ─── GET ALL DOCUMENTS ────────────────────────────────────────────────────────
+/* ========================= DOCUMENT LIST (🔥 YOUR MISSING ROUTE) ========================= */
 router.get('/documents', protect, async (req, res) => {
     try {
         const docs = await DocumentIndex.find(
@@ -118,123 +71,99 @@ router.get('/documents', protect, async (req, res) => {
     }
 });
 
-// ─── CHAT WITH DOCUMENT ───────────────────────────────────────────────────────
+/* ========================= SINGLE DOC CHAT ========================= */
 router.post('/chat', protect, async (req, res) => {
     try {
-        const { docId, query, history = [] } = req.body;
-        if (!docId || !query) {
-            return res.status(400).json({ error: 'docId and query are required.' });
-        }
+        const { docId, query } = req.body;
 
         const doc = await DocumentIndex.findOne({ docId, userId: req.user._id });
-        if (!doc) return res.status(404).json({ error: 'Document not found.' });
+        if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         const topChunks = await findRelevantChunks(query, doc.chunks, 3);
-
-        const context = topChunks
-            .map((c, i) => `[Source ${i + 1} — Page ${c.pageNum}]:\n${c.text}`)
-            .join('\n\n');
-
-        const chatHistory = history.slice(-6).map(m => ({
-            role:    m.role,
-            content: m.content,
-        }));
-
-        const completion = await groq.chat.completions.create({
-            model:    'llama-3.3-70b-versatile',
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a helpful assistant. Answer the question using ONLY the provided context below.
-
-IMPORTANT FORMATTING RULES:
-- Provide your answer in a clear, concise bullet-point list.
-- Use bullet points for each relevant piece of information found in the context.
-- Summarize the key points using bullet points ONLY.
-- Avoid using long paragraphs.
-- Keep answers highly structured and readable.
-- If the answer is not in the context, say: "I don't have enough information in this document to answer that."
-
-Context:
-${context}`,
-                },
-                ...chatHistory,
-                { role: 'user', content: query },
-            ],
-            max_tokens:  1024,
-            temperature: 0.3,
-        });
-
-        const answer         = completion.choices[0].message.content;
-        const sourcedPages   = [...new Set(topChunks.map(c => c.pageNum))];
-        const contextChunks  = topChunks.map(c => c.text);
-
-        res.json({ answer, sourcedPages, context: contextChunks });
-
-    } catch (err) {
-        console.error('Chat error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── CHAT ACROSS ALL DOCUMENTS ────────────────────────────────────────────────
-router.post('/chat-all', protect, async (req, res) => {
-    try {
-        const { query, history = [] } = req.body;
-        if (!query) return res.status(400).json({ error: 'query is required.' });
-
-        const allDocs = await DocumentIndex.find({ userId: req.user._id });
-        if (!allDocs.length) return res.status(404).json({ error: 'No documents found.' });
-
-        const allChunks = allDocs.flatMap(doc => doc.chunks);
-        const topChunks = await findRelevantChunks(query, allChunks, 3);
-
-        const context = topChunks
-            .map((c, i) => `[Source ${i + 1} — Page ${c.pageNum}]:\n${c.text}`)
-            .join('\n\n');
+        const context = topChunks.map(c => c.text).join("\n\n");
 
         const completion = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             messages: [
                 {
                     role: 'system',
-                    content: `You are a helpful assistant. Answer using ONLY requested context below.
-
-IMPORTANT FORMATTING RULES:
-- Provide your answer in a clear and concise bullet-point list.
-- Do NOT use paragraphs for the answer.
-- Keep the response highly structured.
+                    content: `Answer ONLY using context. Return one precise answer. If not found say "Not found".
 
 Context:
-${context}`,
+${context}`
                 },
-                ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-                { role: 'user', content: query },
+                { role: 'user', content: query }
             ],
-            max_tokens:  1024,
-            temperature: 0.3,
+            temperature: 0.2
         });
 
-        const answer        = completion.choices[0].message.content;
-        const sourcedPages  = [...new Set(topChunks.map(c => c.pageNum))];
-        const contextChunks = topChunks.map(c => c.text);
-
-        res.json({ answer, sourcedPages, context: contextChunks });
+        res.json({
+            answer: completion.choices[0].message.content,
+            context: topChunks.map(c => c.text)
+        });
 
     } catch (err) {
-        console.error('Chat-all error:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// ─── DELETE DOCUMENT ──────────────────────────────────────────────────────────
+/* ========================= CHAT ALL (FIXED) ========================= */
+router.post('/chat-all', protect, async (req, res) => {
+    try {
+        const { query } = req.body;
+
+        const allDocs = await DocumentIndex.find({ userId: req.user._id });
+
+        // 🔥 find best document first
+        const scoredDocs = await Promise.all(
+            allDocs.map(async (doc) => {
+                const topChunk = await findRelevantChunks(query, doc.chunks, 1);
+                return {
+                    doc,
+                    score: topChunk[0]?.score || 0,
+                };
+            })
+        );
+
+        const bestDoc = scoredDocs.sort((a, b) => b.score - a.score)[0].doc;
+
+        const topChunks = await findRelevantChunks(query, bestDoc.chunks, 3);
+        const context = topChunks.map(c => c.text).join("\n\n");
+
+        const completion = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                {
+                    role: 'system',
+                    content: `Answer ONLY using context. Return ONE answer. Do not list multiple names.
+
+Context:
+${context}`
+                },
+                { role: 'user', content: query }
+            ],
+            temperature: 0.2
+        });
+
+        res.json({
+            answer: completion.choices[0].message.content,
+            context: topChunks.map(c => c.text)
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/* ========================= DELETE ========================= */
 router.delete('/documents/:docId', protect, async (req, res) => {
     try {
-        await DocumentIndex.findOneAndDelete({ 
-            docId:  req.params.docId, 
-            userId: req.user._id 
+        await DocumentIndex.findOneAndDelete({
+            docId: req.params.docId,
+            userId: req.user._id
         });
-        res.json({ message: 'Document deleted successfully.' });
+
+        res.json({ message: 'Deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
