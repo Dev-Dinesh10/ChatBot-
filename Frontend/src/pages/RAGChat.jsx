@@ -40,6 +40,7 @@ export default function RAGChat() {
     const [dragging, setDragging] = useState(false);
     const [docsLoading, setDocsLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [mode, setMode] = useState('single'); // 'single' | 'all'
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -162,7 +163,8 @@ export default function RAGChat() {
     // ── chat ─────────────────────────────────────
     async function sendMessage(e) {
         e.preventDefault();
-        if (!input.trim() || !activeDoc || loading) return;
+        if (!input.trim() || loading) return;
+        if (mode === 'single' && !activeDoc) return; // only block if single mode without doc
 
         const userMsg = { role: 'user', content: input.trim() };
         setMessages(prev => [...prev, userMsg]);
@@ -170,11 +172,15 @@ export default function RAGChat() {
         setLoading(true);
 
         try {
-            const { data } = await axios.post(`${BASE_URL}/api/rag/chat`, {
-                docId: activeDoc.docId,
-                query: userMsg.content,
-                history: messages.filter(m => m.role !== 'system'),
-            }, { headers: getAuthHeaders() });
+            const endpoint = mode === 'single'
+                ? `${BASE_URL}/api/rag/chat`
+                : `${BASE_URL}/api/rag/chat-all`;
+
+            const payload = mode === 'single'
+                ? { docId: activeDoc.docId, query: userMsg.content, history: messages.filter(m => m.role !== 'system') }
+                : { query: userMsg.content, history: messages.filter(m => m.role !== 'system') };
+
+            const { data } = await axios.post(endpoint, payload, { headers: getAuthHeaders() });
 
             setMessages(prev => [...prev, {
                 role: 'assistant',
@@ -427,12 +433,22 @@ export default function RAGChat() {
                         <Menu className="w-5 h-5" />
                     </button>
 
-                    {activeDoc ? (
+                    {mode === 'single' && activeDoc ? (
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                             {typeIcon(activeDoc.type)}
                             <div className="min-w-0">
                                 <p className="text-sm font-medium text-gray-200 truncate">{activeDoc.filename}</p>
-                                <p className="text-[11px] text-gray-600 hidden sm:block">{activeDoc.totalPages} pages · BM25 retrieval</p>
+                                <p className="text-[11px] text-gray-600 hidden sm:block">{activeDoc.totalPages} pages · Vector retrieval</p>
+                            </div>
+                        </div>
+                    ) : mode === 'all' ? (
+                        <div className="flex items-center gap-2 flex-1">
+                            <div className="w-5 h-5 rounded-md bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                                <Zap className="w-3 h-3 text-violet-400" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-200">All Documents</p>
+                                <p className="text-[11px] text-gray-600 hidden sm:block">{documents.length} document{documents.length !== 1 ? 's' : ''} · Smart retrieval</p>
                             </div>
                         </div>
                     ) : (
@@ -441,11 +457,37 @@ export default function RAGChat() {
                             <span className="text-sm truncate">Select a document to start chatting</span>
                         </div>
                     )}
+
+                    {/* Mode toggle */}
+                    <div className="flex items-center gap-1 ml-auto bg-white/[0.04] border border-white/[0.07] rounded-xl p-1">
+                        <button
+                            onClick={() => setMode('single')}
+                            title="Chat with selected document only"
+                            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all ${
+                                mode === 'single'
+                                    ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            This Doc
+                        </button>
+                        <button
+                            onClick={() => { setMode('all'); setMessages([]); }}
+                            title="Search across all your documents"
+                            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all ${
+                                mode === 'all'
+                                    ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            All Docs
+                        </button>
+                    </div>
                 </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-3 md:px-6 py-4 md:py-6">
-                    {!activeDoc ? (
+                    {mode === 'single' && !activeDoc ? (
                         <div className="h-full flex flex-col items-center justify-center text-center px-4">
                             <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-4">
                                 <BookOpen className="w-7 h-7 md:w-8 md:h-8 text-gray-600" />
@@ -475,6 +517,16 @@ export default function RAGChat() {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    ) : messages.length === 0 && mode === 'all' ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                            <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-4">
+                                <Zap className="w-7 h-7 text-violet-400" />
+                            </div>
+                            <h2 className="text-base md:text-lg font-semibold text-gray-300 mb-2">Search All Documents</h2>
+                            <p className="text-sm text-gray-600 max-w-xs">
+                                Ask a question and Lucy AI will intelligently search across all {documents.length} of your documents to find the best answer.
+                            </p>
                         </div>
                     ) : (
                         <div className="max-w-3xl mx-auto">
@@ -510,20 +562,26 @@ export default function RAGChat() {
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(e); }
                                 }}
-                                disabled={!activeDoc || loading}
-                                placeholder={activeDoc ? 'Ask a question about the document…' : 'Select a document first…'}
+                                disabled={(mode === 'single' && !activeDoc) || loading}
+                                placeholder={
+                                    mode === 'single'
+                                        ? activeDoc
+                                            ? 'Ask about this document…'
+                                            : 'Select a document first…'
+                                        : 'Ask across all documents…'
+                                }
                                 rows={1}
                                 className="w-full bg-white/[0.06] border border-white/[0.08] rounded-2xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none disabled:opacity-40 transition-all custom-scrollbar"
                                 style={{ maxHeight: '160px' }}
                             />
                         </div>
-                        <button type="submit" disabled={!activeDoc || !input.trim() || loading}
+                        <button type="submit" disabled={(mode === 'single' && !activeDoc) || !input.trim() || loading}
                             className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-violet-500/20 hover:-translate-y-0.5">
                             <Send className="w-4 h-4" />
                         </button>
                     </form>
                     <p className="text-center text-[10px] text-gray-700 mt-2 hidden sm:block">
-                        Enter to send · Shift+Enter for new line · Powered by BM25 + Claude
+                        Enter to send · Shift+Enter for new line · {mode === 'all' ? 'Searching all documents' : 'Single document mode'}
                     </p>
                 </div>
             </main>

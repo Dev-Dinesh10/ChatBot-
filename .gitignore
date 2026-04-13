@@ -1,24 +1,24 @@
-# Dependencies
-node_modules/
-
-# Environment variables - NEVER commit these
+# Secrets
 .env
+.env.local
+.env.development
+.env.production
 .env.*
-!.env.example
 
-# Python cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+eval/.deepeval/
 .pytest_cache/
 
-# Build output
+# Node
+node_modules/
 dist/
 build/
-
-# Logs
-*.log
-
-# OS files
 .DS_Store
-Thumbs.db
+
+# RAG specific
+*.pdf
+*.txt
+!Frontend/workflow.txt

@@ -1,0 +1,15 @@
+User uploads doc
+    ↓
+Voyage → embeddings (store in DB)
+
+User asks question
+    ↓
+Voyage → query embedding
+    ↓
+Similarity search (your code)
+    ↓
+Top chunks selected
+    ↓
+Groq (LLM)
+    ↓
+Answer generated

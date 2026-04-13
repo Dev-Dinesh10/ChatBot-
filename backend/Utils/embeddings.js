@@ -1,60 +1,107 @@
-const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
-const VOYAGE_URL = 'https://api.voyageai.com/v1/embeddings';
+import { pipeline } from '@xenova/transformers';
 
-// 🔹 Base embedding function (reusable)
-async function getEmbedding(text, type = "document") {
-    const response = await fetch(VOYAGE_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${VOYAGE_API_KEY}`,
-        },
-        body: JSON.stringify({
-            input: [text],
-            model: 'voyage-3',
-            input_type: type, // 🔥 FIXED
-        }),
-    });
+// ========================= MODEL SETUP =========================
+let embedder = null;
 
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Voyage API error: ${err}`);
+async function getEmbedder() {
+    if (!embedder) {
+        console.log("Loading embedding model... (only happens once)");
+        embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+        console.log("Embedding model ready!");
+    }
+    return embedder;
+}
+
+// ========================= CORE EMBEDDING =========================
+export async function getEmbedding(text) {
+    if (!text || !text.trim()) {
+        throw new Error("Empty text for embedding");
     }
 
-    const data = await response.json();
-    return data.data[0].embedding;
+    const embed = await getEmbedder();
+    const output = await embed(text, { pooling: 'mean', normalize: true });
+    return Array.from(output.data);
 }
 
-// ✅ For document chunks (upload phase)
-export async function getDocumentEmbedding(text) {
-    return getEmbedding(text, "document");
+// ========================= BATCH EMBEDDINGS =========================
+export async function getBatchEmbeddings(texts) {
+    if (!Array.isArray(texts) || texts.length === 0) {
+        throw new Error("Invalid batch input");
+    }
+
+    // Run sequentially to avoid memory spikes
+    const embeddings = [];
+    for (const text of texts) {
+        const emb = await getEmbedding(text);
+        embeddings.push(emb);
+    }
+    return embeddings;
 }
 
-// ✅ For user queries (MOST IMPORTANT FIX)
-export async function getQueryEmbedding(text) {
-    return getEmbedding(text, "query");
-}
+// ========================= ALIASES =========================
+export const getDocumentEmbedding = (text) => getEmbedding(text);
+export const getQueryEmbedding = (text) => getEmbedding(text);
 
-// Cosine similarity
+// ========================= SIMILARITY =========================
 export function cosineSimilarity(vecA, vecB) {
-    const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-    const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
-    const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+    if (
+        !Array.isArray(vecA) ||
+        !Array.isArray(vecB) ||
+        vecA.length === 0 ||
+        vecB.length === 0 ||
+        vecA.length !== vecB.length
+    ) {
+        return 0;
+    }
+
+    let dot = 0, magA = 0, magB = 0;
+
+    for (let i = 0; i < vecA.length; i++) {
+        const a = vecA[i] || 0;
+        const b = vecB[i] || 0;
+        dot += a * b;
+        magA += a * a;
+        magB += b * b;
+    }
+
+    magA = Math.sqrt(magA);
+    magB = Math.sqrt(magB);
+
     if (magA === 0 || magB === 0) return 0;
+
     return dot / (magA * magB);
 }
 
-// 🔹 Retrieval function (FIXED to use query embedding)
-export async function findRelevantChunks(queryText, allDocs, topK = 3) {
-    const queryEmbedding = await getQueryEmbedding(queryText); // 🔥 FIXED
+// ========================= RETRIEVAL =========================
+export async function findRelevantChunks(queryText, allChunks, topK = 3) {
+    try {
+        const queryEmbedding = await getQueryEmbedding(queryText);
 
-    const scored = allDocs.map((doc) => ({
-        text: doc.text,
-        pageNum: doc.pageNum,
-        score: cosineSimilarity(queryEmbedding, doc.embedding),
-    }));
+        if (!queryEmbedding) return [];
 
-    return scored
-        .sort((a, b) => b.score - a.score)
-        .slice(0, topK);
+        const validChunks = (allChunks || []).filter(
+            chunk =>
+                chunk &&
+                Array.isArray(chunk.embedding) &&
+                chunk.embedding.length > 0
+        );
+
+        if (validChunks.length === 0) {
+            console.warn("No valid chunks found");
+            return [];
+        }
+
+        return validChunks
+            .map(chunk => ({
+                text: chunk.text,
+                pageNum: chunk.pageNum,
+                score: cosineSimilarity(queryEmbedding, chunk.embedding),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, topK);
+
+    } catch (err) {
+        console.error("findRelevantChunks ERROR:", err.message);
+        return [];
+    }
 }

@@ -3,7 +3,7 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware as protect } from '../middleware/auth.js';
 import { extractFromPDF, extractFromText, extractFromURL } from '../Utils/Extracttext.js';
-import { getDocumentEmbedding, findRelevantChunks } from '../Utils/embeddings.js';
+import { getBatchEmbeddings, findRelevantChunks } from '../Utils/embeddings.js';
 import DocumentIndex from '../models/DocumentIndex.js';
 import Groq from 'groq-sdk';
 
@@ -30,16 +30,17 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
 
         const docId = uuidv4();
 
-        const embeddedChunks = await Promise.all(
-            pageChunks.map(async (chunk, index) => ({
-                text: chunk.text,
-                pageNum: chunk.pageNum,
-                chunkIndex: index,
-                embedding: await getDocumentEmbedding(chunk.text),
-                docId,
-                userId: req.user._id,
-            }))
-        );
+        const texts = pageChunks.map(chunk => chunk.text);
+        const embeddings = await getBatchEmbeddings(texts, "document");
+
+        const embeddedChunks = pageChunks.map((chunk, index) => ({
+            text: chunk.text,
+            pageNum: chunk.pageNum,
+            chunkIndex: index,
+            embedding: embeddings[index],
+            docId,
+            userId: req.user._id,
+        }));
 
         const doc = await DocumentIndex.create({
             userId: req.user._id,
@@ -57,7 +58,7 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
     }
 });
 
-/* ========================= DOCUMENT LIST (🔥 YOUR MISSING ROUTE) ========================= */
+/* ========================= DOCUMENT LIST ========================= */
 router.get('/documents', protect, async (req, res) => {
     try {
         const docs = await DocumentIndex.find(
@@ -107,25 +108,53 @@ ${context}`
     }
 });
 
-/* ========================= CHAT ALL (FIXED) ========================= */
+/* ========================= CHAT ALL (FIXED SAFE VERSION) ========================= */
 router.post('/chat-all', protect, async (req, res) => {
     try {
         const { query } = req.body;
 
         const allDocs = await DocumentIndex.find({ userId: req.user._id });
 
-        // 🔥 find best document first
-        const scoredDocs = await Promise.all(
-            allDocs.map(async (doc) => {
-                const topChunk = await findRelevantChunks(query, doc.chunks, 1);
-                return {
-                    doc,
-                    score: topChunk[0]?.score || 0,
-                };
-            })
-        );
+       const scoredDocs = await Promise.all(
+    allDocs.map(async (doc) => {
+        try {
+            const topChunks = await findRelevantChunks(query, doc.chunks, 3);
 
-        const bestDoc = scoredDocs.sort((a, b) => b.score - a.score)[0].doc;
+            const avgScore =
+                topChunks.length > 0
+                    ? topChunks.reduce((sum, c) => sum + c.score, 0) / topChunks.length
+                    : 0;
+
+            return {
+                doc,
+                score: avgScore,
+            };
+        } catch (err) {
+            return {
+                doc,
+                score: 0,
+            };
+        }
+    })
+);
+
+        const validDocs = scoredDocs.filter(d => d.score > 0);
+
+        if (!validDocs.length) {
+            return res.json({
+                answer: "Not found",
+                context: []
+            });
+        }
+
+        const bestDoc = validDocs.sort((a, b) => b.score - a.score)[0].doc;
+
+        if (!bestDoc) {
+            return res.json({
+                answer: "Not found",
+                context: []
+            });
+        }
 
         const topChunks = await findRelevantChunks(query, bestDoc.chunks, 3);
         const context = topChunks.map(c => c.text).join("\n\n");
@@ -151,6 +180,7 @@ ${context}`
         });
 
     } catch (err) {
+        console.error("CHAT-ALL ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
