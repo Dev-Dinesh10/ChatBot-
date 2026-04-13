@@ -6,7 +6,7 @@ import DarkVeil from '../components/DarkVeil';
 
 const BASE_URL = 'http://localhost:5000';
 
-export default function Register({ goToLogin }) {
+export default function Register({ goToLogin, goToLanding }) {
     const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -93,7 +93,9 @@ export default function Register({ goToLogin }) {
                 >
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-6">
-                        <img src="/logo.png" alt="Lucy AI Logo" className="w-24 h-24 object-contain mb-4 drop-shadow-lg" />
+                        <button onClick={goToLanding} className="hover:scale-110 transition-transform active:scale-95 mb-4 group">
+                            <img src="/logo.png" alt="Lucy AI Logo" className="w-32 h-32 object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all" />
+                        </button>
                         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Create account</h1>
                     </div>
 

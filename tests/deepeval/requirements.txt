@@ -1,0 +1,5 @@
+deepeval
+requests
+python-dotenv
+pytest
+groq

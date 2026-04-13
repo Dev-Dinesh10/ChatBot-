@@ -14,7 +14,8 @@ import Dashboard from './components/DashboardCharts';
 import DeleteModal from './components/DeleteModal';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import RAGChat from './pages/Ragchat';                     // ← NEW
+import RAGChat from './pages/Ragchat';
+import Landing from './pages/Landing';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -36,7 +37,7 @@ export default function App() {
   const textareaRef = useRef(null);
   const { startStream, stopStream, streaming } = useChatStream(BASE_URL);
 
-  const [authPage, setAuthPage] = useState('login');
+  const [authPage, setAuthPage] = useState('landing'); // 'landing' | 'login' | 'register'
 
   // Open sidebar by default on desktop
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function App() {
     setMessages([]);
     setThreads([]);
     setActiveThreadId(null);
+    toast.success('Logged out successfully');
   };
 
   // ── LOAD THREADS ──
@@ -246,13 +248,24 @@ export default function App() {
 
   // ── AUTH GATE ──
   if (!session) {
+    if (authPage === 'landing') {
+      return (
+        <>
+          <ToastContainer theme="dark" position="top-right" autoClose={3000} />
+          <Landing 
+            onGetStarted={() => setAuthPage('register')} 
+            onLogin={() => setAuthPage('login')} 
+          />
+        </>
+      );
+    }
     return (
       <>
         <ToastContainer theme="dark" position="top-right" autoClose={3000} />
         {authPage === 'register' ? (
-          <Register onLogin={handleLogin} goToLogin={() => setAuthPage('login')} />
+          <Register onLogin={handleLogin} goToLogin={() => setAuthPage('login')} goToLanding={() => setAuthPage('landing')} />
         ) : (
-          <Login onLogin={handleLogin} goToRegister={() => setAuthPage('register')} />
+          <Login onLogin={handleLogin} goToRegister={() => setAuthPage('register')} goToLanding={() => setAuthPage('landing')} />
         )}
       </>
     );
@@ -358,7 +371,6 @@ export default function App() {
             <div className="p-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2 font-semibold">
                 <img src="/logo.png" alt="Lucy AI Logo" className="w-12 h-12 object-contain drop-shadow-md" />
-                <span className="text-white font-bold text-lg">Lucy AI</span>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -461,11 +473,54 @@ export default function App() {
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-6 text-center max-w-xl mx-auto">
-                  <div className="mb-8">
-                    <img src="/logo.png" alt="Lucy AI" className="w-28 h-28 object-contain drop-shadow-2xl opacity-60 grayscale-[10%]" />
+                  <div className="mb-10">
+                    <img src="/logo.png" alt="Lucy AI" className="w-48 h-48 md:w-56 md:h-56 object-contain drop-shadow-[0_0_50px_rgba(124,58,237,0.35)] hover:scale-105 transition-transform duration-700" />
                   </div>
                   <h1 className="text-xl md:text-2xl font-bold text-white mb-2">Welcome to Lucy AI</h1>
-                  <p className="text-gray-500 text-sm">Start a new conversation to experience high-speed streaming AI with memory.</p>
+                  <p className="text-gray-500 text-sm mb-10">Start a new conversation to experience high-speed streaming AI with memory.</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full animate-fade-up" style={{ animationDelay: '0.2s' }}>
+                    {[
+                      { 
+                        icon: <BookOpen className="w-4 h-4 text-violet-400" />, 
+                        title: "Document RAG", 
+                        desc: "Analyze your PDFs & files",
+                        action: () => setView('rag')
+                      },
+                      { 
+                        icon: <LayoutDashboard className="w-4 h-4 text-indigo-400" />, 
+                        title: "Live Analytics", 
+                        desc: "Check your usage metrics",
+                        action: () => setView('dashboard')
+                      },
+                      { 
+                        icon: <Sparkles className="w-4 h-4 text-amber-400" />, 
+                        title: "Explain Concept", 
+                        desc: "Break down complex topics",
+                        action: () => setInput("Can you explain how Quantum Computing works in simple terms?")
+                      },
+                      { 
+                        icon: <MessageSquare className="w-4 h-4 text-sky-400" />, 
+                        title: "Write & Edit", 
+                        desc: "Draft emails or code",
+                        action: () => setInput("Help me write a professional follow-up email for a job interview.")
+                      }
+                    ].map((item, i) => (
+                      <button 
+                        key={i}
+                        onClick={item.action}
+                        className="flex items-start gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          {item.icon}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-200">{item.title}</p>
+                          <p className="text-[11px] text-gray-500">{item.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="pb-36 pt-4 md:pt-6 flex flex-col gap-6 md:gap-8 max-w-3xl mx-auto w-full px-3 md:px-4">

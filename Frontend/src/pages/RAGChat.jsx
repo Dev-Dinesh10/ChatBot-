@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -73,6 +75,15 @@ export default function RAGChat() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // ── auto-expand textarea ────────────────────
+    useEffect(() => {
+        const textarea = inputRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+        }
+    }, [input]);
 
     // ── select a document ────────────────────────
     function selectDoc(doc) {
@@ -241,12 +252,18 @@ export default function RAGChat() {
                             <div className="relative group/ai-bubble">
                                 <div className={`bg-white/[0.03] border ${msg.error ? 'border-red-500/20 bg-red-500/5' : 'border-white/[0.06]'} rounded-2xl rounded-tl-sm p-4 md:p-5 shadow-sm transition-colors`}>
                                     <div className={`text-sm md:text-[15px] leading-relaxed font-normal ${msg.error ? 'text-red-300' : 'text-gray-200'}`}>
-                                        {/* Render simplified markdown for RAG - bolding only */}
-                                        {msg.content.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
-                                            part.startsWith('**') && part.endsWith('**')
-                                                ? <strong key={j} className="font-bold text-white">{part.slice(2, -2)}</strong>
-                                                : part
-                                        )}
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                ul: ({ node, ...props }) => <ul className="list-disc pl-5 my-3 space-y-2 marker:text-violet-400" {...props} />,
+                                                ol: ({ node, ...props }) => <ol className="list-decimal pl-5 my-3 space-y-2 marker:text-violet-400" {...props} />,
+                                                li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                                                strong: ({ node, ...props }) => <strong className="font-bold text-white border-b border-violet-500/20" {...props} />,
+                                            }}
+                                        >
+                                            {msg.content}
+                                        </ReactMarkdown>
                                     </div>
 
                                     {/* Source page pills */}
@@ -496,8 +513,8 @@ export default function RAGChat() {
                                 disabled={!activeDoc || loading}
                                 placeholder={activeDoc ? 'Ask a question about the document…' : 'Select a document first…'}
                                 rows={1}
-                                className="w-full bg-white/[0.06] border border-white/[0.08] rounded-2xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none disabled:opacity-40 transition-all"
-                                style={{ maxHeight: '120px', overflowY: 'auto' }}
+                                className="w-full bg-white/[0.06] border border-white/[0.08] rounded-2xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none disabled:opacity-40 transition-all custom-scrollbar"
+                                style={{ maxHeight: '160px' }}
                             />
                         </div>
                         <button type="submit" disabled={!activeDoc || !input.trim() || loading}

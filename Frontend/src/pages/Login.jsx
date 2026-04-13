@@ -6,7 +6,7 @@ import DarkVeil from '../components/DarkVeil';
 
 const BASE_URL = 'http://localhost:5000';
 
-export default function Login({ onLogin, goToRegister }) {
+export default function Login({ onLogin, goToRegister, goToLanding }) {
     const [form, setForm] = useState({ email: '', password: '' });
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -69,7 +69,9 @@ export default function Login({ onLogin, goToRegister }) {
                 >
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
-                        <img src="/logo.png" alt="Lucy AI Logo" className="w-24 h-24 object-contain mb-4 drop-shadow-lg" />
+                        <button onClick={goToLanding} className="hover:scale-110 transition-transform active:scale-95 mb-4 group">
+                            <img src="/logo.png" alt="Lucy AI Logo" className="w-32 h-32 object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all" />
+                        </button>
                         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Welcome back</h1>
                         <p className="text-white/50 text-sm mt-1">Sign in to your Lucy AI account</p>
                     </div>
@@ -144,7 +146,7 @@ export default function Login({ onLogin, goToRegister }) {
                     </form>
 
                     {/* Divider */}
-                    <div className="relative my-6">
+                    <div className="relative my-6 text-center">
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full h-px bg-white/[0.08]" />
                         </div>

@@ -5,7 +5,7 @@ import { authMiddleware as protect } from '../middleware/auth.js';
 import { extractFromPDF, extractFromText, extractFromURL } from '../Utils/Extracttext.js';
 import { getEmbedding, findRelevantChunks } from '../Utils/embeddings.js';
 import DocumentIndex from '../models/DocumentIndex.js';
-import Groq               from 'groq-sdk';
+import Groq from 'groq-sdk';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,7 +24,6 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Only PDF, TXT, and MD files are supported.' });
         }
 
-        // 1. Extract page-aware chunks using your extractor
         let pageChunks = [];
         if (ext === 'pdf') {
             pageChunks = await extractFromPDF(req.file.buffer);
@@ -37,7 +36,6 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Could not extract text from file.' });
         }
 
-        // 2. Embed each chunk with Voyage AI
         const embeddedChunks = await Promise.all(
             pageChunks.map(async (chunk, index) => ({
                 text:       chunk.text,
@@ -47,7 +45,6 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
             }))
         );
 
-        // 3. Save to MongoDB
         const doc = await DocumentIndex.create({
             userId:     req.user._id,
             docId:      uuidv4(),
@@ -75,14 +72,12 @@ router.post('/url', protect, async (req, res) => {
         const { url } = req.body;
         if (!url) return res.status(400).json({ error: 'URL is required.' });
 
-        // 1. Extract chunks + title from URL
         const { chunks: pageChunks, title: filename } = await extractFromURL(url);
 
         if (!pageChunks.length) {
             return res.status(400).json({ error: 'Could not extract text from URL.' });
         }
 
-        // 2. Embed each chunk
         const embeddedChunks = await Promise.all(
             pageChunks.map(async (chunk, index) => ({
                 text:       chunk.text,
@@ -92,7 +87,6 @@ router.post('/url', protect, async (req, res) => {
             }))
         );
 
-        // 3. Save to MongoDB
         const doc = await DocumentIndex.create({
             userId:     req.user._id,
             docId:      uuidv4(),
@@ -115,7 +109,7 @@ router.get('/documents', protect, async (req, res) => {
     try {
         const docs = await DocumentIndex.find(
             { userId: req.user._id },
-            { chunks: 0 }          // exclude heavy chunk data from list
+            { chunks: 0 }
         ).sort({ createdAt: -1 });
 
         res.json(docs);
@@ -132,25 +126,20 @@ router.post('/chat', protect, async (req, res) => {
             return res.status(400).json({ error: 'docId and query are required.' });
         }
 
-        // 1. Load document with chunks
         const doc = await DocumentIndex.findOne({ docId, userId: req.user._id });
         if (!doc) return res.status(404).json({ error: 'Document not found.' });
 
-        // 2. Find top 3 relevant chunks via cosine similarity
         const topChunks = await findRelevantChunks(query, doc.chunks, 3);
 
-        // 3. Build context string
         const context = topChunks
             .map((c, i) => `[Source ${i + 1} — Page ${c.pageNum}]:\n${c.text}`)
             .join('\n\n');
 
-        // 4. Build chat history for Groq (last 6 messages only)
         const chatHistory = history.slice(-6).map(m => ({
             role:    m.role,
             content: m.content,
         }));
 
-        // 5. Call Groq LLM with context injected
         const completion = await groq.chat.completions.create({
             model:    'llama-3.3-70b-versatile',
             messages: [
@@ -159,10 +148,11 @@ router.post('/chat', protect, async (req, res) => {
                     content: `You are a helpful assistant. Answer the question using ONLY the provided context below.
 
 IMPORTANT FORMATTING RULES:
-- First, give a short paragraph summary of the answer.
-- Then, provide a clear bullet-point list with more details or specific points from the context.
+- Provide your answer in a clear, concise bullet-point list.
+- Use bullet points for each relevant piece of information found in the context.
+- Summarize the key points using bullet points ONLY.
+- Avoid using long paragraphs.
 - Keep answers highly structured and readable.
-- Do NOT return everything in one single paragraph.
 - If the answer is not in the context, say: "I don't have enough information in this document to answer that."
 
 Context:
@@ -175,13 +165,64 @@ ${context}`,
             temperature: 0.3,
         });
 
-        const answer       = completion.choices[0].message.content;
-        const sourcedPages = [...new Set(topChunks.map(c => c.pageNum))];
+        const answer         = completion.choices[0].message.content;
+        const sourcedPages   = [...new Set(topChunks.map(c => c.pageNum))];
+        const contextChunks  = topChunks.map(c => c.text);
 
-        res.json({ answer, sourcedPages });
+        res.json({ answer, sourcedPages, context: contextChunks });
 
     } catch (err) {
         console.error('Chat error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── CHAT ACROSS ALL DOCUMENTS ────────────────────────────────────────────────
+router.post('/chat-all', protect, async (req, res) => {
+    try {
+        const { query, history = [] } = req.body;
+        if (!query) return res.status(400).json({ error: 'query is required.' });
+
+        const allDocs = await DocumentIndex.find({ userId: req.user._id });
+        if (!allDocs.length) return res.status(404).json({ error: 'No documents found.' });
+
+        const allChunks = allDocs.flatMap(doc => doc.chunks);
+        const topChunks = await findRelevantChunks(query, allChunks, 3);
+
+        const context = topChunks
+            .map((c, i) => `[Source ${i + 1} — Page ${c.pageNum}]:\n${c.text}`)
+            .join('\n\n');
+
+        const completion = await groq.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are a helpful assistant. Answer using ONLY requested context below.
+
+IMPORTANT FORMATTING RULES:
+- Provide your answer in a clear and concise bullet-point list.
+- Do NOT use paragraphs for the answer.
+- Keep the response highly structured.
+
+Context:
+${context}`,
+                },
+                ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+                { role: 'user', content: query },
+            ],
+            max_tokens:  1024,
+            temperature: 0.3,
+        });
+
+        const answer        = completion.choices[0].message.content;
+        const sourcedPages  = [...new Set(topChunks.map(c => c.pageNum))];
+        const contextChunks = topChunks.map(c => c.text);
+
+        res.json({ answer, sourcedPages, context: contextChunks });
+
+    } catch (err) {
+        console.error('Chat-all error:', err);
         res.status(500).json({ error: err.message });
     }
 });
