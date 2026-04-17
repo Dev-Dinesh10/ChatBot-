@@ -1,7 +1,7 @@
-import 'dotenv/config'; // Add this first so variables are loaded before imports!
+import 'dotenv/config'; 
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
+import './config/dbconnection.js';
 import chatRoutes from './routes/chat.js';
 import analyticsRoutes from './routes/analytics.js';
 import exportRoutes from './routes/export.js';
@@ -18,11 +18,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/klausai';
-mongoose.connect(MONGODB_URI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
